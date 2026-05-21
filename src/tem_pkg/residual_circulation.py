@@ -1,13 +1,15 @@
-import numpy as np
-from metpy.units import units
-import xarray as xr
-from scipy.integrate import cumulative_trapezoid
-import pandas as pd
 import warnings
-from .utils import nanGradient
-from .interpolation import alt2press, interpolateToLogPressure
+
+import numpy as np
+import pandas as pd
+import xarray as xr
+from metpy.units import units
+from scipy.integrate import cumulative_trapezoid
+
+from .constants import P0, Cp, R, Ts, angVeloEarth, gEarth, rEarth
 from .file_io import readAndTransposeData
-from .constants import H, P0, gEarth, R, Cp, Ts, rEarth, angVeloEarth
+from .interpolation import alt2press, interpolateToLogPressure
+from .utils import nanGradient
 
 
 def TEMCalcs(tomlConfig, datasetLogPress, time):
@@ -131,7 +133,7 @@ def TEMCalcs(tomlConfig, datasetLogPress, time):
     if tomlConfig['verticalWindType'].lower() != 'missing':
         dataToSave['W'] = (wBar, 'vertical wind', str(wBar.units))
         
-    if tomlConfig['saveEddyTerms'] == True:
+    if tomlConfig['saveEddyTerms']:
         dataToSave['vPrimeUPrimeBar'] = (vPrimeUPrimeBar, 'zonal mean horizontal eddy momentum flux', str(vPrimeUPrimeBar.units))
         dataToSave['vPrimeThetaPrimeBar'] = (vPrimeThetaPrimeBar, 'zonal mean horizontal eddy heat flux', str(vPrimeThetaPrimeBar.units))
 
@@ -177,7 +179,7 @@ def TEMCalcs(tomlConfig, datasetLogPress, time):
     dsOut.coords['time'] = [time]
 
 
-    if tomlConfig['FourierTransform'] == True and tomlConfig['verticalWindType'].lower() != 'missing':
+    if tomlConfig['FourierTransform'] and tomlConfig['verticalWindType'].lower() != 'missing':
         # Fourier decomposition of EPF
         uPrimeFFT = np.fft.rfft(np.nan_to_num(uPrime.magnitude), axis=2)
         vPrimeFFT = np.fft.rfft(np.nan_to_num(vPrime.magnitude), axis=2)
@@ -223,7 +225,7 @@ def TEMCalcs(tomlConfig, datasetLogPress, time):
         for _var in FourT:
             FourT[_var][:, :, _nyq] = FourT[_var][:, :, _nyq] / 2
 
-        if tomlConfig['saveEddyTerms'] == True: # SHOULD FFT OR SOMETHING ELSE BE SAVED HERE?????
+        if tomlConfig['saveEddyTerms']: # SHOULD FFT OR SOMETHING ELSE BE SAVED HERE?????
             vPrimeThetaPrimeWaveN = np.real(vPrimeFFT * np.conj(thetaPrimeFFT)) / (n_valid_vt * _N / 2)
             vPrimeUPrimeWaveN = np.real(vPrimeFFT * np.conj(uPrimeFFT)) / (n_valid_uv * _N / 2)
             wPrimeUPrimeWaveN = np.real(wPrimeFFT * np.conj(uPrimeFFT)) / (n_valid_uw * _N / 2)
@@ -244,7 +246,7 @@ def TEMCalcs(tomlConfig, datasetLogPress, time):
         
             waveNumbers = list(range(1, Fourier['divEPF_WaveN'].shape[2] + 1))    
             
-            if tomlConfig['saveEddyTerms'] == True:
+            if tomlConfig['saveEddyTerms']:
                 for variable in eddyTermsFour.keys():
                     Fourier[variable] = eddyTermsFour[variable][:, :, 1:]
                     
@@ -274,7 +276,7 @@ def TEMCalcs(tomlConfig, datasetLogPress, time):
 
             waveNumbers = tomlConfig['Waves']
 
-            if tomlConfig['saveEddyTerms'] == True:
+            if tomlConfig['saveEddyTerms']:
                 Fourier.update({'vPrimeThetaPrimeWaveN': np.zeros((FShape)), 'vPrimeUPrimeWaveN': np.zeros((FShape)),
                                 'wPrimeUPrimeWaveN': np.zeros((FShape))})
                 for variable in eddyTermsFour.keys():
@@ -300,7 +302,7 @@ def TEMCalcs(tomlConfig, datasetLogPress, time):
             'divEPF_WaveN': (Fourier['divEPF_WaveN'], 'Eliassen-Pulm flux divergence', str(divEPF.units)),
         }
 
-        if tomlConfig['saveEddyTerms'] == True:
+        if tomlConfig['saveEddyTerms']:
             dataToSaveFourier['vPrimeThetaPrimeWaveN'] = (Fourier['vPrimeThetaPrimeWaveN'], 'wave decomposition of horizontal eddy heat flux', str((vPrime * thetaPrime).units)) # CHECK UNITS
             dataToSaveFourier['vPrimeUPrimeWaveN'] = (Fourier['vPrimeUPrimeWaveN'], 'wave decomposition of horizontal eddy momentum flux', str((vPrime * uPrime).units))
             dataToSaveFourier['wPrimeUPrimeWaveN'] = (Fourier['wPrimeUPrimeWaveN'], 'wave decomposition of vertical eddy momentum flux', str((wPrime * uPrime).units))

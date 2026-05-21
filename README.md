@@ -1,4 +1,4 @@
-# TEM Pkg
+# Transformed Eulerian Mean
 
 A Python package for Transformed Eulerian Mean (TEM) diagnostics of atmospheric circulation.
 TEM separates the meridional circulation into a residual mean flow and eddy-driven components,

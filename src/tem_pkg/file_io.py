@@ -5,8 +5,6 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from .constants import H, P0
-
 
 def extractTimeFromFileNames(filesPaths, timeInfoInFileNames):
     '''
@@ -27,7 +25,7 @@ def extractTimeFromFileNames(filesPaths, timeInfoInFileNames):
     elif 'YY' in timeInfoInFileNames:
         yearString = 'YY'
     else:
-        print(f"ERROR: Impossible to extract time information from file names.\n\n"
+        print("ERROR: Impossible to extract time information from file names.\n\n"
                 "At least position of year (YYYY or YY) must be provided in config.")
         sys.exit(1)
 
@@ -89,7 +87,7 @@ def _load_and_filter_file_paths(inputDir, fileNames, timeInfoInFileNames,
         with open(inputDir) as txtFile:
             filesPaths = [Path(line.strip()) for line in txtFile]
         if not filesPaths:
-            print(f"ERROR: No input files found. Please check if the input .txt file exists and\n\n"
+            print("ERROR: No input files found. Please check if the input .txt file exists and\n\n"
                   "includes path(s) to exising NetCDF file(s) with data for TEM calculations")
             sys.exit(1)
 

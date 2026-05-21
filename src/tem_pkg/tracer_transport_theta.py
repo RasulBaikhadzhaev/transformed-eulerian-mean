@@ -1,10 +1,12 @@
 import numpy as np
 from metpy.units import units
 from scipy.integrate import cumulative_trapezoid
-from .utils import nanGradient, binData, addRatioUnits
+
+from .constants import gEarth, rEarth
+from .file_io import readAndTransposeData, readDataAndGetWeightedAverage, saveOut
 from .interpolation import interpolateToTheta, interpolateToThetaAndCombineData
-from .file_io import saveOut, readAndTransposeData, readDataAndGetWeightedAverage
-from .constants import H, P0, gEarth, R, rEarth
+from .utils import addRatioUnits, binData, nanGradient
+
 
 def tracerTransport(interpolatedDataset, tomlConfig):
 
@@ -30,18 +32,18 @@ def tracerTransport(interpolatedDataset, tomlConfig):
     sigmaDensity_q_prime =  (sigmaDensity * q) - np.nanmean((sigmaDensity * q), axis=2)[:, :, np.newaxis]
 
     FourierToSave = {}
-    if tomlConfig['FourierTransform'] == True:
+    if tomlConfig['FourierTransform']:
         sigmaDensity_v_primeFFT = np.fft.rfft(np.nan_to_num(sigmaDensity_v_prime.magnitude), axis=2)
         sigmaDensity_q_primeFFT = np.fft.rfft(np.nan_to_num(sigmaDensity_q_prime.magnitude), axis=2)
 
 
     dataToSave = {}
-    dataToSave[f'PRESS'] = [pressureBar, f'zonal mean pressure', str(pressureBar.units)]
+    dataToSave['PRESS'] = [pressureBar, 'zonal mean pressure', str(pressureBar.units)]
 
-    if tomlConfig['massSF'] == True:
+    if tomlConfig['massSF']:
         massSF = ((cosFi / gEarth) * (np.flip(cumulative_trapezoid(y=np.flip(np.nan_to_num(vBarStar), axis=0), x=np.flip(pressureBar, axis=0), axis=0, initial=0), 
                                                     axis=0) * units(str(vBarStar.units)) * units(str(pressureBar.units)))).to('kg/m/s')
-        dataToSave[f'massSF'] = [massSF, f'Mass stream function', str(massSF.units)]
+        dataToSave['massSF'] = [massSF, 'Mass stream function', str(massSF.units)]
 
     if len(tomlConfig['sinksSources']) != len(tomlConfig['tracerNames']):
         raise ValueError(
@@ -101,7 +103,7 @@ def tracerTransport(interpolatedDataset, tomlConfig):
         dataToSave[f'{tracer}_adv_lat'] = [adv_lat, f'meridional residual circulation tendency of {tracer}', str(adv_lat.units)]
         # dataToSave[f'{tracer}_eddy_diffusivity'] = [eddyDiffusivity, f'eddy diffusivity as in Curbelo 2025, calculated from {tracer}', str(eddyDiffusivity.units)]
 
-        if tomlConfig['FourierTransform'] == True:
+        if tomlConfig['FourierTransform']:
             ChiPrimeFFT = np.fft.rfft(np.nan_to_num(chiPrime.magnitude), axis=2)
 
             # n_valid: number of finite longitude samples per (theta, lat) point.
@@ -192,7 +194,7 @@ def init_worker(shared_counter):
 
 def mainCalcs(tomlConfig, count, pathsAndTime='', reqVarsWithTracers='', pathDictionary='', reqVars=''):    
     try:
-        if tomlConfig['tracerDataInMetFiles'] == True: # if met and tracer data are in the same files.
+        if tomlConfig['tracerDataInMetFiles']: # if met and tracer data are in the same files.
             timeStamp = list(pathsAndTime.index)[count]
             
             dataset = readAndTransposeData(pathsAndTime['Path'][count], reqVarsWithTracers, tomlConfig['vertDim'], 

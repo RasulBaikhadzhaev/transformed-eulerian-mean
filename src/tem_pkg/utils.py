@@ -144,10 +144,10 @@ def is_equal_or_shorter_than_month(freq):
 
     try:
         duration = pd.to_timedelta(f)
-    except:
+    except ValueError:
         try:
             duration = pd.to_timedelta('1' + f)
-        except:
+        except ValueError:
             return False
 
     return duration <= pd.Timedelta(days=31)
@@ -166,10 +166,10 @@ def is_equal_or_shorter_than_day(freq):
 
     try:
         duration = pd.to_timedelta(f)
-    except:
+    except ValueError:
         try:
             duration = pd.to_timedelta('1' + f)
-        except:
+        except ValueError:
             return False
 
     return duration <= pd.Timedelta(days=1)
