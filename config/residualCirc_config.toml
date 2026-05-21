@@ -1,0 +1,166 @@
+####################################################################################################
+# IO settings
+####################################################################################################
+
+# Directory where results are stored.
+outputDirectory = 'tests/data/sample_output/residual_circulation'
+
+# Path where input (meteorological) data is located.
+inputPath = 'tests/data/sample_input/ERA5'
+
+# Type of input path.
+# Accepts 'directory' or 'txt'. If 'directory', inFileNames is used to find files.
+inputPathType = 'directory'
+
+# Names of input files. Uses recursive rglob, so glob patterns are supported.
+# Example: '*[0-9].nc' matches files with a digit before .nc.
+# Only used if inputPathType = 'directory'.
+inFileNames = 'era5*.nc'
+
+# Description of the input data, saved as an attribute in the output files.
+inputDataDescription = 'ERA5.1 reanalysis data'
+
+# Position of time information in file names.
+# Accepts 'YYYY' (or 'YY' if century is absent) for year, 'MM' for month, 'DD' for day,
+# 'HH' for hour, 'mm' for minute, 'ss' for second.
+# At least year must be given; include all other available time fields.
+# Only one '*' is allowed; it must be the first or last character.
+# All non-time characters must be represented by '?'.
+# Examples: '*YYMMDDHH???' for era5_10120100.nc
+#           'mm?HH?MM?DD?YYYY*' for 50_18_10_25_1990_data.nc
+timeInfoInFileNames = '*YYMMDDHH???'
+
+# Prefix for output file names. When outputTemporalMean is false, the input file name
+# is appended after the prefix. Otherwise the date (up to day or month) is appended.
+outPrefix = 'Res_circ'
+
+
+####################################################################################################
+# Calculation settings
+####################################################################################################
+
+# Log-pressure altitude levels in km to which the input data will be interpolated.
+# Expects a homogeneous array (all floats or all integers).
+# If verticalDimensionType is not 'other', interpolation can be skipped with targetLevels = 'skip'.
+# targetLevels = 'skip'
+# 87-level high-resolution grid:
+# targetLevels = [0.0, 0.38, 0.74, 1.14, 1.53, 2.0, 2.56, 2.99, 3.45, 4.21, 4.75, 5.58, 6.43,
+#                 7.31, 8.51, 8.82, 9.44, 10.07, 10.71, 11.36, 12.02, 12.69, 13.38, 14.07,
+#                 14.78, 15.14, 15.5, 15.86, 16.23, 16.6, 16.97, 17.35, 17.73, 18.11, 18.5,
+#                 18.9, 19.31, 19.72, 20.14, 20.58, 21.03, 21.49, 21.96, 22.44, 22.94, 23.44,
+#                 23.97, 24.5, 25.06, 25.62, 26.21, 26.81, 27.43, 28.07, 28.73, 29.41, 30.11,
+#                 30.84, 31.59, 32.36, 33.17, 34.0, 34.87, 35.77, 36.7, 37.67, 38.68, 39.73,
+#                 40.83, 41.98, 43.17, 44.42, 45.74, 47.11, 48.56, 50.07, 51.67, 53.36,
+#                 55.14, 57.02, 59.02, 61.13, 63.39, 65.79, 68.35, 71.1, 74.04, 80.59]
+targetLevels = [0.0,   1.14,  2.56,  4.21,  6.43,  8.82, 10.71, 12.69, 14.78, 16.23,
+               17.35, 18.5,  19.72, 21.03, 22.44, 23.97, 25.62, 27.43, 29.41, 31.59,
+               33.17, 35.77, 38.68, 41.98, 45.74, 50.07, 55.14, 61.13, 68.35, 80.59]
+
+# Perform Fourier decomposition (longitude to wavenumber domain) of Eliassen-Palm flux
+# components and their divergence.
+# Can only be performed if verticalWindType is not 'missing'.
+# Accepts true or false.
+FourierTransform = true
+
+# Wavenumbers to save after Fourier transformation.
+# Only used if FourierTransform = true.
+# Accepts 'all' to save every wavenumber individually, or a list of strings where:
+#   - a single number saves that wavenumber's contribution,
+#   - 'N-M' saves the sum over wavenumbers N through M (inclusive),
+#   - 'N-end' saves the sum from wavenumber N to the last one.
+# Waves = ['all']
+Waves = ['1', '2', '3', '4', '5', '6-10', '11-20', '21-end']
+
+# Number of CPU cores used in the calculation.
+# Accepts 'all cores' (uses multiprocessing.cpu_count()) or a positive integer.
+# processNumber = 'all cores'
+processNumber = 6
+
+# Exclude files before this date. Accepts 'YYYY-MM-DD-HH' format, or '' to disable.
+# Example: startDate = '1978-01-01-00' to skip files before 1 January 1978.
+# startDate = '2000-01-05-00'
+startDate = ''
+
+# Exclude files after this date. Same format as startDate. The specified date is included.
+# endDate = '2000-01-25-00'
+endDate = ''
+
+# Restrict input to specific hours of the day.
+# Leave as an empty list [] to keep all available timestamps.
+# Example: hoursToKeep = [0, 6, 12, 18]
+hoursToKeep = []
+
+# Skip timestamps for which an output file already exists in outputDirectory.
+# Accepts true or false. Only works when outputTemporalMean = false.
+outDirSkip = false
+
+# Save eddy flux terms used in the calculations to the output file.
+# Some terms are 3-dimensional and require significant storage.
+# Accepts true or false.
+saveEddyTerms = true
+
+# Interpolate to targetLevels and save the zonal mean of these input variables.
+# Use an empty list [] to save nothing.
+saveInterpolatedZonalMean = ['THETA_DOT_TOT', 'TEMP', 'GPH', 'SH']
+
+# Save the zonal mean of these 2-D input variables directly (no vertical interpolation).
+# Use an empty list [] to save nothing.
+saveZonalMean = ['TROP1_Z', 'TROP1_TEMP', 'TROP1_PRESS', 'TROP1_THETA']
+
+# Compute a temporal mean before saving output.
+# Accepts 'monthly', 'daily', or false (save each timestep individually).
+outputTemporalMean = false
+
+
+####################################################################################################
+# Variables and dimensions of the input files
+####################################################################################################
+
+# Vertical coordinate type of the input files.
+# Accepts 'pressure', 'log-pressure', or 'other'.
+# Calculations are performed in log-pressure altitude (z = -H·ln(p/p_s)).
+# If 'other' is selected, a 3-D pressure variable is required for interpolation.
+verticalDimensionType = 'other'
+
+# Temperature variable type in the input files.
+# Accepts 'theta' (potential temperature) or 'temperature' (air temperature).
+# Using 'theta' avoids an extra conversion step and is faster.
+# If only air temperature is available, set this to 'temperature' and it will be
+# converted to potential temperature using pressure.
+temperatureType = 'theta'
+
+# Vertical wind variable type in the input files.
+# Accepts 'W' (vertical velocity in height coordinates, m/s),
+#         'omega' (vertical velocity in pressure coordinates, Pa/s), or
+#         'missing' (no vertical wind available; wBarStar will be estimated from
+#                    vBarStar via the mass stream function).
+verticalWindType = 'omega'
+
+# Name of the 3-D pressure variable in the input file.
+# Not required if verticalDimensionType = 'pressure' or 'log-pressure'.
+pressureName = 'PRESS'
+
+# Name of the temperature variable in the input file.
+temperatureName = 'THETA'
+
+# Name of the zonal wind variable in the input file.
+zonalWindName = 'U'
+
+# Name of the meridional wind variable in the input file.
+meridionalWindName = 'V'
+
+# Name of the vertical wind variable in the input file.
+verticalWindName = 'OMEGA'
+
+# Name of the latitude dimension in the input file.
+latDim = 'lat'
+
+# Name of the longitude dimension in the input file.
+lonDim = 'lon'
+
+# Name of the vertical dimension in the input file.
+vertDim = 'hybrid'
+
+# Name of the time dimension in the input file.
+# Set to '' if the input files have no time dimension (each file contains one timestep).
+timeDim = 'time'

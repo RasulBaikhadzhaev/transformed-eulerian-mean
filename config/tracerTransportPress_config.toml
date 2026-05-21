@@ -1,0 +1,204 @@
+# Configuration file for the pressure-coordinate tracer transport calculator.
+# The program expects a separate .nc file for every timestep.
+
+####################################################################################################
+# IO settings (meteorological files; used for all files when tracerDataInMetFiles = true,
+# and for met-only files when tracerDataInMetFiles = false)
+####################################################################################################
+
+# Set to true if tracer data and meteorological data are in the same files.
+# Set to false if they are in separate files.
+tracerDataInMetFiles = false
+
+# Directory where results are stored.
+outputDirectory = 'tests/data/sample_output/tTransport_press'
+
+# Directory where input (meteorological) data is located.
+inputDirectory = 'tests/data/sample_input/ERA5'
+
+# Names of input files. Uses recursive rglob, so glob patterns are supported.
+# Example: '*[0-9].nc' matches files with a digit before .nc.
+inFileNames = 'era5*.nc'
+
+# Position of time information in file names.
+# Accepts 'YYYY' (or 'YY' if century is absent) for year, 'MM' for month, 'DD' for day,
+# 'HH' for hour, 'mm' for minute, 'ss' for second.
+# At least year must be given; include all other available time fields.
+# Only one '*' is allowed; it must be the first or last character.
+# All non-time characters must be represented by '?'.
+# Examples: '*YYMMDDHH???' for era5_10120100.nc
+#           'mm?HH?MM?DD?YYYY*' for 50_18_10_25_1990_data.nc
+timeInfoInFileNames = '*YYMMDDHH???'
+
+# Prefix for output file names. The string '{tracerNames}' is replaced with the tracer names.
+outPrefix = '{tracerNames}_Transport_'
+
+
+####################################################################################################
+# Calculation settings
+####################################################################################################
+
+# Log-pressure altitude levels in km to which the input data will be interpolated.
+# Expects a homogeneous array (all floats or all integers).
+# Interpolation is only performed when verticalDimensionType = 'other'.
+# 87-level high-resolution grid (commented out):
+# targetLevels = [0.0, 0.38, 0.74, 1.14, 1.53, 2.0, 2.56, 2.99, 3.45, 4.21, 4.75, 5.58, 6.43,
+#                 7.31, 8.51, 8.82, 9.44, 10.07, 10.71, 11.36, 12.02, 12.69, 13.38, 14.07,
+#                 14.78, 15.14, 15.5, 15.86, 16.23, 16.6, 16.97, 17.35, 17.73, 18.11, 18.5,
+#                 18.9, 19.31, 19.72, 20.14, 20.58, 21.03, 21.49, 21.96, 22.44, 22.94, 23.44,
+#                 23.97, 24.5, 25.06, 25.62, 26.21, 26.81, 27.43, 28.07, 28.73, 29.41, 30.11,
+#                 30.84, 31.59, 32.36, 33.17, 34.0, 34.87, 35.77, 36.7, 37.67, 38.68, 39.73,
+#                 40.83, 41.98, 43.17, 44.42, 45.74, 47.11, 48.56, 50.07, 51.67, 53.36,
+#                 55.14, 57.02, 59.02, 61.13, 63.39, 65.79, 68.35, 71.1, 74.04, 80.59]
+targetLevels = [0.0,   1.14,  2.56,  4.21,  6.43,  8.82, 10.71, 12.69, 14.78, 16.23,
+               17.35, 18.5,  19.72, 21.03, 22.44, 23.97, 25.62, 27.43, 29.41, 31.59,
+               33.17, 35.77, 38.68, 41.98, 45.74, 50.07, 55.14, 61.13, 68.35, 80.59]
+
+# Compute and save the residual mass stream function. Accepts true or false.
+massSF = true
+
+# Perform Fourier decomposition (longitude to wavenumber domain) of eddy transport vectors.
+# Accepts true or false.
+FourierTransform = true
+
+# Wavenumbers to save after Fourier transformation.
+# Only used if FourierTransform = true.
+# Accepts 'all' to save every wavenumber individually, or a list of strings where:
+#   - a single number saves that wavenumber's contribution,
+#   - 'N-M' saves the sum over wavenumbers N through M (inclusive),
+#   - 'N-end' saves the sum from wavenumber N to the last one.
+"Waves" = ['1', '2', '3', '4', '5', '6-10', '11-20', '21-end']
+
+# Binning along the latitude axis: combines this many adjacent latitude points into one
+# (mean value). Set to 1 to keep the original resolution.
+# If tracer data is in separate files with a different horizontal resolution, meteorological
+# data is interpolated to the tracer grid before binning.
+binningLat = 4
+
+# Binning along the longitude axis. Set to 1 to keep the original resolution.
+binningLon = 1
+
+# Number of CPU cores used in the calculation.
+# Accepts 'all cores' (uses multiprocessing.cpu_count()) or a positive integer.
+processNumber = 'all cores'
+
+# Exclude files before this date. Accepts 'YYYY-MM-DD-HH' format, or '' to disable.
+# Example: startDate = '1978-01-01-00' to skip files before 1 January 1978.
+startDate = ''
+
+# Exclude files after this date. Same format as startDate. The specified date is included.
+endDate = ''
+
+# Skip timestamps for which an output file already exists in outputDirectory.
+# Accepts true or false.
+outDirSkip = false
+
+
+####################################################################################################
+# Variables and dimensions of the input (meteorological) files
+####################################################################################################
+
+# Vertical coordinate type of the input files.
+# Accepts 'pressure', 'log-pressure', or 'other'.
+# Calculations are performed in log-pressure altitude (z = -H·ln(p/p_s)).
+# If 'other' is selected, a 3-D pressure variable is required for interpolation.
+verticalDimensionType = 'other'
+
+# Temperature variable type in the input files.
+# Accepts 'theta' (potential temperature) or 'temperature' (air temperature).
+# Using 'theta' avoids an extra conversion step and is faster.
+# If only air temperature is available, set this to 'temperature' and it will be
+# converted to potential temperature using pressure.
+temperatureType = 'theta'
+
+# Vertical wind variable type in the input files.
+# Accepts 'W' (vertical velocity in height coordinates, m/s) or
+#         'omega' (vertical velocity in pressure coordinates, Pa/s).
+# If 'omega' is given, W is estimated assuming hydrostatic balance.
+verticalWindType = 'omega'
+
+# Name of the 3-D pressure variable in the input file.
+# Not required if verticalDimensionType = 'pressure' or 'log-pressure'.
+pressureName = 'PRESS'
+
+# Name of the temperature variable in the input file.
+temperatureName = 'THETA'
+
+# Name of the zonal wind variable in the input file.
+zonalWindName = 'U'
+
+# Name of the meridional wind variable in the input file.
+meridionalWindName = 'V'
+
+# Name of the vertical wind variable in the input file.
+verticalWindName = 'OMEGA'
+
+# Names of the tracers as they appear in the input data files.
+# For multiple tracers use a list: tracerNames = ['BA', 'O3']
+tracerNames = ['BA']
+
+# Sinks and sources for each tracer in the stratosphere.
+# List entries correspond to tracerNames in order.
+# '0' means no sink/source; a digit string 'N' applies a constant sink rate of N per second;
+# 'half life, N, unit' specifies first-order decay with half-life N in the given unit
+# (e.g. 'half life, 90, days').
+sinksSources = ['1']
+
+# Name of the latitude dimension in the input file.
+latDim = 'lat'
+
+# Name of the longitude dimension in the input file.
+lonDim = 'lon'
+
+# Name of the vertical dimension in the input file.
+vertDim = 'hybrid'
+
+# Name of the time dimension in the input file.
+timeDim = 'time'
+
+
+####################################################################################################
+# Settings for tracer data — only used when tracerDataInMetFiles = false
+####################################################################################################
+
+# Directory where tracer input data is located.
+tracerInputDirectory = 'tests/data/sample_input/CLaMS_Press'
+
+# Names of tracer input files (same rglob rules as inFileNames).
+tracerInFileNames = 'clams_press*.nc'
+
+# Position of time information in tracer file names (same format as timeInfoInFileNames).
+tracerTimeInfoInFileNames = '*YYMMDDHH???'
+
+# Temporal binning of meteorological data to match the (lower) frequency of tracer data.
+# Accepts 'auto' or a positive integer.
+# 'auto': infers the tracer data time span and selects all met files within ±½ timestep,
+#         assigning weights inversely proportional to the frequency of each hour (to
+#         account for tidal aliases). For example, if tracer data is daily at 12:00 and
+#         met data is 6-hourly, the five files at 00, 06, 12, 18 (same day) and 00 (next
+#         day) are used with weights 0.125, 0.25, 0.25, 0.25, 0.125 respectively.
+# integer N: selects the N met files closest in time to each tracer timestamp with equal
+#         weights, regardless of how far they are. Use with care if met data coverage
+#         does not overlap the tracer period.
+MetDataBinningTime = 'auto'
+
+# Vertical coordinate type of the tracer input files.
+# Accepts 'pressure', 'log-pressure', or 'other'.
+# If 'other', a 3-D pressure variable is required for interpolation.
+tracerVerticalDimensionType = 'pressure'
+
+# Name of the pressure variable in the tracer input file.
+# Not required if tracerVerticalDimensionType = 'pressure' or 'log-pressure'.
+tracerPressureName = ''
+
+# Name of the latitude dimension in the tracer input file.
+tracerLatDim = 'lat'
+
+# Name of the longitude dimension in the tracer input file.
+tracerLonDim = 'lon'
+
+# Name of the vertical dimension in the tracer input file.
+tracerVertDim = 'press'
+
+# Name of the time dimension in the tracer input file.
+tracerTimeDim = 'time'
