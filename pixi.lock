@@ -2090,7 +2090,7 @@ packages:
 - pypi: ./
   name: transformed-eulerian-mean
   version: 0.1.0
-  sha256: f71d7f3f3608a7ca3b0acb3c66404ce77258d70218322bbc9db62f858fff74d3
+  sha256: 36c634e2894a427ed3676ac73750c7ba696eb04c6ce9fa59f5ca2a0bf35cb889
   requires_python: '>=3.14'
 - conda: https://conda.anaconda.org/conda-forge/noarch/typing-extensions-4.15.0-h396c80c_0.conda
   sha256: 7c2df5721c742c2a47b2c8f960e718c930031663ac1174da67c1ed5999f7938c
