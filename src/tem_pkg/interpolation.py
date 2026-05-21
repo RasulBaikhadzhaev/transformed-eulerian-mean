@@ -1,12 +1,12 @@
 import sys
 
+import metpy.interpolate as ip
 import numpy as np
 import xarray as xr
-from metpy.units import units
 from metpy.interpolate import interpolate_1d
-import metpy.interpolate as ip
+from metpy.units import units
 
-from .constants import H, P0
+from .constants import P0, H
 
 
 def _build_interpolated_dataset(dataset, variables, target_coord, out_coord_values,

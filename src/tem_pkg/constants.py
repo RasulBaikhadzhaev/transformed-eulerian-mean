@@ -1,5 +1,5 @@
-from metpy.units import units
 from metpy import constants
+from metpy.units import units
 
 H = 7 * units.km                    # [km] scale height
 P0 = 1000 * units.hPa               # [hPa] ground pressure
