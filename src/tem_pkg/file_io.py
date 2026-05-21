@@ -1,12 +1,15 @@
+from __future__ import annotations
+
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
 import xarray as xr
 
 
-def extractTimeFromFileNames(filesPaths, timeInfoInFileNames):
+def extractTimeFromFileNames(filesPaths: list, timeInfoInFileNames: str) -> pd.DatetimeIndex:
     '''
     Parses timestamps from file names based on a user-provided template.
 
@@ -65,8 +68,8 @@ def extractTimeFromFileNames(filesPaths, timeInfoInFileNames):
     return dateAndtime
 
 
-def _load_and_filter_file_paths(inputDir, fileNames, timeInfoInFileNames,
-                                dateStart, dateEnd, hoursToKeep, inputPathType):
+def _load_and_filter_file_paths(inputDir: str, fileNames: str, timeInfoInFileNames: str,
+                                dateStart: str, dateEnd: str, hoursToKeep: list, inputPathType: str) -> pd.DataFrame:
     """
     Shared file-discovery and filtering logic for both collectFileNames variants.
 
@@ -117,8 +120,8 @@ def _load_and_filter_file_paths(inputDir, fileNames, timeInfoInFileNames,
     return filesPathAndTime.sort_index()
 
 
-def collectFileNames(inputDir, fileNames, timeInfoInFileNames, outputDir='', dateStart='', dateEnd='',
-                     outPrefix='', outDirSkip=0, inputPathType='directory', hoursToKeep=[], outputTemporalMean=''):
+def collectFileNames(inputDir: str, fileNames: str, timeInfoInFileNames: str, outputDir: str = '', dateStart: str = '', dateEnd: str = '',
+                     outPrefix: str = '', outDirSkip: int = 0, inputPathType: str = 'directory', hoursToKeep: list = [], outputTemporalMean: str = '') -> tuple[pd.DataFrame, Any, Any]:
     '''
     Gathers and filters input file paths based on time ranges and existence of output files.
 
@@ -176,8 +179,8 @@ def collectFileNames(inputDir, fileNames, timeInfoInFileNames, outputDir='', dat
     return filesPathAndTime, missingTimeStamps, expectedFrequency
 
 
-def collectFileNamesTTransport(inputDir, fileNames, timeInfoInFileNames, outputDir='', dateStart='', dateEnd='',
-                     outPrefix='', outDirSkip=0, inputPathType='directory', hoursToKeep=[]):
+def collectFileNamesTTransport(inputDir: str, fileNames: str, timeInfoInFileNames: str, outputDir: str = '', dateStart: str = '', dateEnd: str = '',
+                     outPrefix: str = '', outDirSkip: int = 0, inputPathType: str = 'directory', hoursToKeep: list = []) -> tuple[pd.DataFrame, list, Any]:
     '''
     Gathers and filters input file paths for tracer transport tools.
 
@@ -205,7 +208,7 @@ def collectFileNamesTTransport(inputDir, fileNames, timeInfoInFileNames, outputD
     return filesPathAndTime, missingTimeStamps, expectedFrequency
 
 
-def chunkMetFilesPathsForBinning(metFilesPaths, tracerFilesPaths, MetDataBinningTime, tracerExpectedFrequency, metExpectedFrequency):
+def chunkMetFilesPathsForBinning(metFilesPaths: pd.DataFrame, tracerFilesPaths: pd.DataFrame, MetDataBinningTime: int | str, tracerExpectedFrequency: Any, metExpectedFrequency: Any) -> dict:
     """
     Pairs met data files with tracer files, potentially averaging multiple met
     files to match the lower temporal frequency of the tracer data.
@@ -267,7 +270,10 @@ def chunkMetFilesPathsForBinning(metFilesPaths, tracerFilesPaths, MetDataBinning
     return pathDictionary
 
 
-def readAndTransposeData(filePath, reqVars, vertDimName, latDimName, lonDimName, saveInterpolatedZonalMeanVars=[], saveZonalMeanVars=[]):
+def readAndTransposeData(
+    filePath: str, reqVars: list[str], vertDimName: str, latDimName: str, lonDimName: str,
+    saveInterpolatedZonalMeanVars: list[str] = [], saveZonalMeanVars: list[str] = [],
+) -> xr.Dataset:
     '''
     Reads a NetCDF file and standardizes dimension order to [Vertical, Latitude, Longitude].
     '''
@@ -279,7 +285,7 @@ def readAndTransposeData(filePath, reqVars, vertDimName, latDimName, lonDimName,
     return dataset
 
 
-def readDataAndGetWeightedAverage(filesPaths, weights, reqVars, vertDimName, latDimName, lonDimName):
+def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, reqVars: list[str], vertDimName: str, latDimName: str, lonDimName: str) -> xr.Dataset:
     '''Computes a weighted average of multiple NetCDF files (e.g., for time-binning met data).'''
     for index, path in enumerate(filesPaths):
         dataset = xr.open_dataset(path)[reqVars].squeeze()
@@ -293,7 +299,7 @@ def readDataAndGetWeightedAverage(filesPaths, weights, reqVars, vertDimName, lat
     return weightedMeanDataset
 
 
-def saveOut(dataToSave, tomlConfig, timeStamp, lats, thetaLevels):
+def saveOut(dataToSave: dict, tomlConfig: dict, timeStamp: Any, lats: np.ndarray, thetaLevels: Any) -> None:
     """
     Formats the final results and Fourier components into an xarray dataset
     and saves it to a NetCDF file.

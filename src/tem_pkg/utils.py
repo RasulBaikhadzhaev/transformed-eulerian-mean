@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import sys
 import time
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -7,7 +10,7 @@ import toml
 from metpy.units import units
 
 
-def addRatioUnits():
+def addRatioUnits() -> None:
     '''
     Registers custom atmospheric units (mixing ratios) into the MetPy unit registry.
     This allows for seamless unit conversion between ppmv, ppbv, and mass fractions.
@@ -36,7 +39,7 @@ def addRatioUnits():
             units.define('fraction = frac')
 
 
-def load_and_merge_config(parserArgs):
+def load_and_merge_config(parserArgs: Any) -> dict:
     """
     Loads a TOML configuration file and overrides values with command-line arguments.
     """
@@ -47,7 +50,7 @@ def load_and_merge_config(parserArgs):
     return config
 
 
-def format_seconds(seconds):
+def format_seconds(seconds: float) -> str:
     """Converts a raw second count into a human-readable 'Hh Mm Ss' format."""
     if seconds < 0:
         return "calculating..."
@@ -65,7 +68,7 @@ def format_seconds(seconds):
     return " ".join(parts) if parts else "0s"
 
 
-def progress_reporter(counter, totalN, timeStart):
+def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
     """
     A CLI progress bar that runs in a separate thread to monitor processing.
     """
@@ -87,14 +90,14 @@ def progress_reporter(counter, totalN, timeStart):
         time.sleep(1)
 
 
-def binData(dataset, binningLat, binningLon):
+def binData(dataset: Any, binningLat: int, binningLon: int) -> Any:
     '''
     Downsample the dataset by applying a spatial block average over latitude and longitude.
     '''
     return dataset.coarsen(lat=binningLat, boundary='trim').mean().coarsen(lon=binningLon, boundary='trim').mean()
 
 
-def nanGradient1D(y1d, x1d):
+def nanGradient1D(y1d: np.ndarray, x1d: np.ndarray) -> np.ndarray:
     """Helper function to calculate gradient on a 1D slice, ignoring NaNs."""
     valid_mask = ~np.isnan(y1d)
     valid_y = y1d[valid_mask]
@@ -110,7 +113,7 @@ def nanGradient1D(y1d, x1d):
     return out
 
 
-def nanGradient(y_data, x_data, axis=0):
+def nanGradient(y_data: Any, x_data: Any, axis: int = 0) -> Any:
     """
     Calculates the finite difference derivative while handling NaN values.
     Standard np.gradient fails if any NaNs are present; this function masks
@@ -134,7 +137,7 @@ def nanGradient(y_data, x_data, axis=0):
     return out_mag
 
 
-def is_equal_or_shorter_than_month(freq):
+def is_equal_or_shorter_than_month(freq: Any) -> bool:
     f = str(freq).strip()
     f_upper = f.upper()
 
@@ -153,7 +156,7 @@ def is_equal_or_shorter_than_month(freq):
     return duration <= pd.Timedelta(days=31)
 
 
-def is_equal_or_shorter_than_day(freq):
+def is_equal_or_shorter_than_day(freq: Any) -> bool:
     f = str(freq).strip()
     f_upper = f.upper()
 

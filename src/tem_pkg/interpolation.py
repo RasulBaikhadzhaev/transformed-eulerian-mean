@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 import sys
+from collections.abc import Callable
+from typing import Any
 
 import metpy.interpolate as ip
 import numpy as np
@@ -9,9 +13,9 @@ from metpy.units import units
 from .constants import P0, H
 
 
-def _build_interpolated_dataset(dataset, variables, target_coord, out_coord_values,
-                                 interp_target, source_coord, lat_dim, lon_dim,
-                                 interp_fn, copy_attrs=True, cast_single=True):
+def _build_interpolated_dataset(dataset: xr.Dataset, variables: list[str], target_coord: str, out_coord_values: Any,
+                                 interp_target: Any, source_coord: Any, lat_dim: str, lon_dim: str,
+                                 interp_fn: Callable, copy_attrs: bool = True, cast_single: bool = True) -> xr.Dataset:
     """
     Interpolate *variables* from *dataset* and return an xr.Dataset at *out_coord_values*.
 
@@ -38,18 +42,18 @@ def _build_interpolated_dataset(dataset, variables, target_coord, out_coord_valu
     return ds
 
 
-def alt2press(x):
+def alt2press(x: Any) -> Any:
     """Converts log-pressure altitude to pressure using the scale height H."""
     return P0 * np.exp(-x / H)
 
 
-def press2alt(x):
+def press2alt(x: Any) -> Any:
     """Converts pressure to log-pressure altitude using the scale height H."""
     return -H * np.log(x / P0)
 
 
-def interpolateToLogPressure(dataset, reqVars, vertDimType, targetLevels, vertDimName, latDimName,
-                                lonDimName, pressureVarName='', saveInterpolatedZonalMeanVars=[], saveZonalMeanVars=[]):
+def interpolateToLogPressure(dataset: xr.Dataset, reqVars: list[str], vertDimType: str, targetLevels: Any, vertDimName: str, latDimName: str,
+                                lonDimName: str, pressureVarName: str = '', saveInterpolatedZonalMeanVars: list[str] = [], saveZonalMeanVars: list[str] = []) -> xr.Dataset:
     '''
     Interpolates a dataset to log-pressure altitude coordinates.
 
@@ -99,7 +103,7 @@ def interpolateToLogPressure(dataset, reqVars, vertDimType, targetLevels, vertDi
     return datasetLogPress
 
 
-def interpolateToTheta(dataset, reqVarsWithTracers, tomlConfig):
+def interpolateToTheta(dataset: xr.Dataset, reqVarsWithTracers: list[str], tomlConfig: dict) -> xr.Dataset:
     """
     Interpolates an existing dataset to theta (potential temperature) levels.
     """
@@ -128,7 +132,7 @@ def interpolateToTheta(dataset, reqVarsWithTracers, tomlConfig):
     return datasetThetaLevels
 
 
-def interpolateToThetaAndCombineData(tracerDataset, metDataset, reqVars, tomlConfig):
+def interpolateToThetaAndCombineData(tracerDataset: xr.Dataset, metDataset: xr.Dataset, reqVars: list[str], tomlConfig: dict) -> xr.Dataset:
     """
     Interpolates (if necessary) both tracer and met datasets to a common
     potential temperature (theta) vertical grid and merges them.
@@ -185,7 +189,7 @@ def interpolateToThetaAndCombineData(tracerDataset, metDataset, reqVars, tomlCon
     return interpolatedDataset
 
 
-def interpolateToPressureAndCombineData(tracerDataset, metDataset, reqVars, tomlConfig):
+def interpolateToPressureAndCombineData(tracerDataset: xr.Dataset, metDataset: xr.Dataset, reqVars: list[str], tomlConfig: dict) -> xr.Dataset:
     """
     Interpolates both tracer and met datasets to a common log-pressure altitude
     grid and merges them.

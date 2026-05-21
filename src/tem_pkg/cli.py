@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import multiprocessing
 import sys
 import threading
 import time
 import warnings
+from collections.abc import Callable
 from itertools import repeat
 from pathlib import Path
 
@@ -30,7 +33,7 @@ np.seterr(divide='ignore')
 warnings.filterwarnings('ignore', message='overflow encountered')
 warnings.filterwarnings('ignore', message='invalid value encountered') 
 
-def run_residual():
+def run_residual() -> None:
     timeStart = time.time()
     from .parser import residual_circ_parser
     from .residual_circulation import init_worker, mainCalcs
@@ -136,7 +139,7 @@ def run_residual():
     #                             repeat(saveZonalMeanVars)))
 
 
-def run_tracer_transport(mainCalcs, init_worker, tomlConfig, reqVars):
+def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig: dict, reqVars: list[str]) -> None:
 
     timeStart = time.time()
     # counter for progress
@@ -245,7 +248,7 @@ def run_tracer_transport(mainCalcs, init_worker, tomlConfig, reqVars):
     print('Processing complete!')
 
 
-def run_tracer_transport_theta():
+def run_tracer_transport_theta() -> None:
 
     from .parser import tTransport_theta_parser
     from .tracer_transport_theta import init_worker, mainCalcs
@@ -271,7 +274,7 @@ def run_tracer_transport_theta():
 
 
 
-def run_tracer_transport_press():
+def run_tracer_transport_press() -> None:
     from .parser import tTransport_press_parser
     from .tracer_transport_press import init_worker, mainCalcs
     parserArgs = tTransport_press_parser().parse_args()
