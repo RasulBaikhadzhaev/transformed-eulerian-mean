@@ -75,7 +75,7 @@ def _run_cli(command, config_src, tmp_dir):
     text = config_src.read_text()
     text = re.sub(
         r"^outputDirectory\s*=\s*'[^']*'",
-        f"outputDirectory = '{tmp_dir}'",
+        lambda _: f"outputDirectory = '{tmp_dir.as_posix()}'",
         text,
         flags=re.MULTILINE,
     )

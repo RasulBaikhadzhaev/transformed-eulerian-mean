@@ -27,7 +27,7 @@ def _patched_config(src_cfg: Path, output_dir: Path) -> Path:
     text = src_cfg.read_text()
     text = re.sub(
         r"^outputDirectory\s*=\s*'[^']*'",
-        f"outputDirectory = '{output_dir}'",
+        lambda _: f"outputDirectory = '{output_dir.as_posix()}'",
         text,
         flags=re.MULTILINE,
     )
