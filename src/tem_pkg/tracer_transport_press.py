@@ -1,10 +1,11 @@
 import numpy as np
 from metpy.units import units
 from scipy.integrate import cumulative_trapezoid
-from .utils import nanGradient, binData, addRatioUnits
+
+from .constants import P0, Cp, R, Ts, gEarth, rEarth
+from .file_io import readAndTransposeData, readDataAndGetWeightedAverage, saveOut
 from .interpolation import alt2press, interpolateToLogPressure, interpolateToPressureAndCombineData
-from .file_io import saveOut, readAndTransposeData, readDataAndGetWeightedAverage
-from .constants import P0, gEarth, R, rEarth, Cp, Ts
+from .utils import addRatioUnits, binData, nanGradient
 
 
 def tracerTransport(interpolatedDataset, tomlConfig):
@@ -51,11 +52,11 @@ def tracerTransport(interpolatedDataset, tomlConfig):
     wBarStar = wBar + 1 / (rEarth * cosFi) * nanGradient(cosFi * vPrimeThetaPrimeBar / DThetaBarDZ, latsR, axis=1)
 
     dataToSave = {}
-    if tomlConfig['massSF'] == True:
+    if tomlConfig['massSF']:
         massSF = -cosFi * np.flip(cumulative_trapezoid(y=np.flip(densBasic2D * np.nan_to_num(vBarStar), axis=0),
                                                         x=np.flip(altitudes, axis=0), axis=0, initial=0), axis=0)
         massSF = massSF * units('kg/(m*s)')
-        dataToSave[f'massSF'] = [massSF, f'Mass stream function', str(massSF.units)]
+        dataToSave['massSF'] = [massSF, 'Mass stream function', str(massSF.units)]
 
     if len(tomlConfig['sinksSources']) != len(tomlConfig['tracerNames']):
         raise ValueError(
@@ -108,16 +109,16 @@ def tracerTransport(interpolatedDataset, tomlConfig):
         
         dataToSave[f'{tracer}_chi_bar'] = [chi_bar, f'zonal mean value of {tracer}', str(chi_bar.units)]
         dataToSave[f'{tracer}_dt_sum'] = [dt_sum, f'temporal derivative of {tracer} estimated from sum of other components', str(dt_sum.units)]
-        dataToSave[f'{tracer}_divm_z'] = [divm_z, f'divergence of vertical eddy flux vector divided by basic density', str(divm_z.units)]
-        dataToSave[f'{tracer}_divm_lat'] = [divm_lat, f'divergence of meridional eddy flux vector divided by basic density', str(divm_lat.units)]
-        dataToSave[f'{tracer}_m_z'] = [m_z, f'vertical eddy flux vector divided by basic density', str(m_z.units)]
-        dataToSave[f'{tracer}_m_lat'] = [m_lat, f'meridional eddy flux vector divided by basic density', str(m_lat.units)]
+        dataToSave[f'{tracer}_divm_z'] = [divm_z, 'divergence of vertical eddy flux vector divided by basic density', str(divm_z.units)]
+        dataToSave[f'{tracer}_divm_lat'] = [divm_lat, 'divergence of meridional eddy flux vector divided by basic density', str(divm_lat.units)]
+        dataToSave[f'{tracer}_m_z'] = [m_z, 'vertical eddy flux vector divided by basic density', str(m_z.units)]
+        dataToSave[f'{tracer}_m_lat'] = [m_lat, 'meridional eddy flux vector divided by basic density', str(m_lat.units)]
         dataToSave[f'{tracer}_adv_z'] = [adv_z, f'negated vertical advection of {tracer}', str(adv_z.units)]
         dataToSave[f'{tracer}_adv_lat'] = [adv_lat, f'negated meridional advection of {tracer}', str(adv_lat.units)]
         
 
         
-        if tomlConfig['FourierTransform'] == True:
+        if tomlConfig['FourierTransform']:
             # Fourier decomposition of eddy tracer transport component
             ChiPrimeFFT = np.fft.rfft(np.nan_to_num(chiPrime.magnitude), axis=2)
             vPrimeFFT = np.fft.rfft(np.nan_to_num(vPrime.magnitude), axis=2)
@@ -167,11 +168,11 @@ def tracerTransport(interpolatedDataset, tomlConfig):
 
             if len(tomlConfig['Waves']) == 1 and tomlConfig['Waves'][0].lower() == 'all':
                 FShape = np.zeros((FourT[f'{tracer}_m_lat_WN'].shape[0], FourT[f'{tracer}_m_lat_WN'].shape[1], FourT[f'{tracer}_m_lat_WN'].shape[2] - 1)).shape
-                Fourier = {f'{tracer}_m_lat_WN': [np.zeros((FShape)), f'Fourier transform of meridional eddy flux vector divided by basic density', str(m_lat.units)], 
-                           f'{tracer}_m_z_WN': [np.zeros((FShape)), f'Fourier transform of vertical eddy flux vector divided by basic density', str(m_z.units)],
-                           f'{tracer}_divm_lat_WN': [np.zeros((FShape)), f'Fourier transform of divergence of meridional eddy flux vector divided by basic density', str(divm_lat.units)], 
-                           f'{tracer}_divm_z_WN': [np.zeros((FShape)), f'Fourier transform of divergence of vertical eddy flux vector divided by basic density', str(divm_z.units)],
-                           f'{tracer}_divm_WN': [np.zeros((FShape)), f'Fourier transform of divergence of eddy flux vector divided by basic density', str(divm_lat.units)]}
+                Fourier = {f'{tracer}_m_lat_WN': [np.zeros((FShape)), 'Fourier transform of meridional eddy flux vector divided by basic density', str(m_lat.units)], 
+                           f'{tracer}_m_z_WN': [np.zeros((FShape)), 'Fourier transform of vertical eddy flux vector divided by basic density', str(m_z.units)],
+                           f'{tracer}_divm_lat_WN': [np.zeros((FShape)), 'Fourier transform of divergence of meridional eddy flux vector divided by basic density', str(divm_lat.units)], 
+                           f'{tracer}_divm_z_WN': [np.zeros((FShape)), 'Fourier transform of divergence of vertical eddy flux vector divided by basic density', str(divm_z.units)],
+                           f'{tracer}_divm_WN': [np.zeros((FShape)), 'Fourier transform of divergence of eddy flux vector divided by basic density', str(divm_lat.units)]}
 
                 for variable in Fourier.keys():
                     Fourier[variable][0][:, :, :] = FourT[variable][:, :, 1:]
@@ -184,11 +185,11 @@ def tracerTransport(interpolatedDataset, tomlConfig):
                 case of "6-10" sum of waves from 6 to 10 will be saved as a single 2d field'''
             
                 FShape = np.zeros((FourT[f'{tracer}_m_lat_WN'].shape[0], FourT[f'{tracer}_m_lat_WN'].shape[1], len(tomlConfig['Waves']))).shape
-                Fourier = {f'{tracer}_m_lat_WN': [np.zeros((FShape)), f'Fourier transform of meridional eddy flux vector divided by basic density', str(m_lat.units)], 
-                           f'{tracer}_m_z_WN': [np.zeros((FShape)), f'Fourier transform of vertical eddy flux vector divided by basic density', str(m_z.units)],
-                           f'{tracer}_divm_lat_WN': [np.zeros((FShape)), f'Fourier transform of divergence of meridional eddy flux vector divided by basic density', str(divm_lat.units)], 
-                           f'{tracer}_divm_z_WN': [np.zeros((FShape)), f'Fourier transform of divergence of vertical eddy flux vector divided by basic density', str(divm_z.units)],
-                           f'{tracer}_divm_WN': [np.zeros((FShape)), f'Fourier transform of divergence of eddy flux vector divided by basic density', str(divm_lat.units)]}
+                Fourier = {f'{tracer}_m_lat_WN': [np.zeros((FShape)), 'Fourier transform of meridional eddy flux vector divided by basic density', str(m_lat.units)], 
+                           f'{tracer}_m_z_WN': [np.zeros((FShape)), 'Fourier transform of vertical eddy flux vector divided by basic density', str(m_z.units)],
+                           f'{tracer}_divm_lat_WN': [np.zeros((FShape)), 'Fourier transform of divergence of meridional eddy flux vector divided by basic density', str(divm_lat.units)], 
+                           f'{tracer}_divm_z_WN': [np.zeros((FShape)), 'Fourier transform of divergence of vertical eddy flux vector divided by basic density', str(divm_z.units)],
+                           f'{tracer}_divm_WN': [np.zeros((FShape)), 'Fourier transform of divergence of eddy flux vector divided by basic density', str(divm_lat.units)]}
 
                 for variable in Fourier.keys():
                     for i, wave in enumerate(tomlConfig['Waves']):
@@ -221,7 +222,7 @@ def init_worker(shared_counter):
 
 def mainCalcs(tomlConfig, count, pathsAndTime='', reqVarsWithTracers='', pathDictionary='', reqVars=''):   
     try:
-        if tomlConfig['tracerDataInMetFiles'] == True: # if met and tracer data are in the same files.
+        if tomlConfig['tracerDataInMetFiles']: # if met and tracer data are in the same files.
             timeStamp = list(pathsAndTime.index)[count]
             
             dataset = readAndTransposeData(pathsAndTime['Path'][count], reqVarsWithTracers, tomlConfig['vertDim'], 

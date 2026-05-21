@@ -1,14 +1,21 @@
-import sys
 import multiprocessing
+import sys
 import threading
 import time
-from itertools import repeat
-from .utils import load_and_merge_config, progress_reporter, is_equal_or_shorter_than_month, is_equal_or_shorter_than_day
-from .file_io import collectFileNames, chunkMetFilesPathsForBinning, collectFileNamesTTransport
-from pathlib import Path
-import pandas as pd
 import warnings
+from itertools import repeat
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
+
+from .file_io import chunkMetFilesPathsForBinning, collectFileNames, collectFileNamesTTransport
+from .utils import (
+    is_equal_or_shorter_than_day,
+    is_equal_or_shorter_than_month,
+    load_and_merge_config,
+    progress_reporter,
+)
 
 # Suppress expected warnings. 
 # The warning "mean of empty slice" happens when zonal mean is calculated, it accures due to absence of data at every 
@@ -25,8 +32,8 @@ warnings.filterwarnings('ignore', message='invalid value encountered')
 
 def run_residual():
     timeStart = time.time()
-    from .residual_circulation import mainCalcs, init_worker
     from .parser import residual_circ_parser
+    from .residual_circulation import init_worker, mainCalcs
 
     # counter for progress
     sharedCounter = multiprocessing.Value('i', 0)
@@ -142,7 +149,7 @@ def run_tracer_transport(mainCalcs, init_worker, tomlConfig, reqVars):
         # elif isinstance(tomlConfig['tracerNames'], str):
         #     tomlConfig['outPrefix'] = tomlConfig['outPrefix'].replace('{tracerNames}', tomlConfig['tracerNames'])
         else:
-            print(f"ERROR: option 'tracerNames' should be list of strings.")
+            print("ERROR: option 'tracerNames' should be list of strings.")
             sys.exit(1)
     
     if not Path(tomlConfig['outputDirectory']).is_dir():
@@ -150,7 +157,7 @@ def run_tracer_transport(mainCalcs, init_worker, tomlConfig, reqVars):
                 "Please specify existing directory to store output files")
         sys.exit(1)
 
-    if tomlConfig['tracerDataInMetFiles'] == True:
+    if tomlConfig['tracerDataInMetFiles']:
         # tracer and met data are in the same files
         pathsAndTime, missingTimeStamps, expectedFrequency = collectFileNames(tomlConfig['inputDirectory'],
                                                         tomlConfig['inFileNames'],
@@ -212,7 +219,7 @@ def run_tracer_transport(mainCalcs, init_worker, tomlConfig, reqVars):
     reporter.start()
 
     try: 
-        if tomlConfig['tracerDataInMetFiles'] == True:
+        if tomlConfig['tracerDataInMetFiles']:
             with multiprocessing.Pool(
                 processes=tomlConfig['processNumber'], 
                 initializer=init_worker, 
@@ -241,7 +248,7 @@ def run_tracer_transport(mainCalcs, init_worker, tomlConfig, reqVars):
 def run_tracer_transport_theta():
 
     from .parser import tTransport_theta_parser
-    from .tracer_transport_theta import mainCalcs, init_worker
+    from .tracer_transport_theta import init_worker, mainCalcs
     parserArgs = tTransport_theta_parser().parse_args()
     
     # combine parser and config file settings
@@ -257,7 +264,7 @@ def run_tracer_transport_theta():
         reqVars = [tomlConfig['pressureName'],
                 tomlConfig['meridionalWindName'], tomlConfig['verticalWindName']]
         
-    if tomlConfig['tracerDataInMetFiles'] == True:
+    if tomlConfig['tracerDataInMetFiles']:
         reqVars.extend(tomlConfig['tracerNames'])
 
     run_tracer_transport(mainCalcs, init_worker, tomlConfig, reqVars)
@@ -266,7 +273,7 @@ def run_tracer_transport_theta():
 
 def run_tracer_transport_press():
     from .parser import tTransport_press_parser
-    from .tracer_transport_press import mainCalcs, init_worker
+    from .tracer_transport_press import init_worker, mainCalcs
     parserArgs = tTransport_press_parser().parse_args()
 
     # combine parser and config file settings
@@ -282,7 +289,7 @@ def run_tracer_transport_press():
         reqVars = [tomlConfig['temperatureName'], 
                 tomlConfig['meridionalWindName'], tomlConfig['verticalWindName']]
         
-    if tomlConfig['tracerDataInMetFiles'] == True: # if met and tracer data are in the same files.
+    if tomlConfig['tracerDataInMetFiles']: # if met and tracer data are in the same files.
         reqVars.extend(tomlConfig['tracerNames'])
 
     run_tracer_transport(mainCalcs, init_worker, tomlConfig, reqVars)
