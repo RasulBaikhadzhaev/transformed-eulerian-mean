@@ -75,38 +75,6 @@ NTHETA = 24
 NPRESS = 24
 
 # ---------------------------------------------------------------------------
-# Real reference file paths (external; tests skip when absent)
-# ---------------------------------------------------------------------------
-_DATA_ROOT = Path(
-    "/home/rb/tuxedoFZJ/copy_files_before_handOver_laptop/Juelich_work"
-    "/Tracer_transport/Felix_Data"
-)
-ERA5_REAL        = _DATA_ROOT / "Input_ERA5"        / "era5_00010112.nc"
-CLAMS_THETA_REAL = _DATA_ROOT / "input_CLAMS_Theta" / "init_i3d_theta_00010112.nc"
-CLAMS_PRESS_REAL = _DATA_ROOT / "Input_CLAMS"       / "init_i3d_press_00010112.nc"
-
-_REF_ROOT = Path(
-    "/home/rb/tuxedoFZJ/copy_files_before_handOver_laptop/Juelich_work"
-    "/Tracer_transport/Test_data/output_to_compare_to"
-)
-REF_THETA_FILE = _REF_ROOT / "BA_Transport_Theta_2000_01_01_12_00.nc"
-
-_TEM_ROOT = Path(
-    "/home/rb/tuxedoFZJ/copy_files_before_handOver_laptop/Juelich_work"
-    "/TEM test data/testOutput"
-)
-TEM_REF_FILE = _TEM_ROOT / "TEM__dailyMean_2000_01_01.nc"
-
-need_theta_ref = pytest.mark.skipif(
-    not (ERA5_REAL.exists() and CLAMS_THETA_REAL.exists() and REF_THETA_FILE.exists()),
-    reason="real ERA5, CLAMS-theta, or reference theta-transport file not found",
-)
-need_tem_ref = pytest.mark.skipif(
-    not (ERA5_REAL.exists() and TEM_REF_FILE.exists()),
-    reason="real ERA5 or reference TEM output file not found",
-)
-
-# ---------------------------------------------------------------------------
 # Target level arrays
 # ---------------------------------------------------------------------------
 _TARGET_THETA = [300, 350, 400, 450, 500, 600, 700, 800, 900, 1000, 1250, 1500]
@@ -265,35 +233,6 @@ def tem_result():
         ds, req, "other", cfg["targetLevels"], "hybrid", "lat", "lon", "PRESS"
     )
     return TEMCalcs(cfg, ds_lp, pd.Timestamp("2000-01-01T12"))
-
-
-# ---------------------------------------------------------------------------
-# Fixtures for real-data comparison tests
-# ---------------------------------------------------------------------------
-
-@pytest.fixture(scope="module")
-def real_theta_result():
-    cfg = _theta_config(target_levels=_TARGET_THETA_FULL, sinksSources=["1"])
-    req = ["THETA", "PRESS", "V", "THETA_DOT_TOT"]
-    tracer = readAndTransposeData(str(CLAMS_THETA_REAL), ["BA"], "theta", "lat", "lon")
-    met    = readAndTransposeData(str(ERA5_REAL), req, "hybrid", "lat", "lon")
-    interp = interpolateToThetaAndCombineData(tracer, met, req, cfg)
-    binned = binData(interp, cfg["binningLat"], cfg["binningLon"])
-    result, lats, tlevs = tracerTransportTheta(binned, cfg)
-    return result, lats, tlevs, binned
-
-
-@pytest.fixture(scope="module")
-def real_tem_result():
-    import pandas as pd
-    cfg = _tem_config(target_levels=_TARGET_LP_FULL)
-    req = ["PRESS", "THETA", "U", "V", "OMEGA"]
-    ds   = readAndTransposeData(str(ERA5_REAL), req, "hybrid", "lat", "lon")
-    ds_lp = interpolateToLogPressure(
-        ds, req, "other", cfg["targetLevels"], "hybrid", "lat", "lon", "PRESS"
-    )
-    return TEMCalcs(cfg, ds_lp, pd.Timestamp("2000-01-01T12"))
-
 
 # ===========================================================================
 # readAndTransposeData / readDataAndGetWeightedAverage
@@ -603,84 +542,3 @@ def test_tem_consistent_across_era5_files():
         out = TEMCalcs(cfg, ds_lp, pd.Timestamp("2000-01-01T00"))
         shapes.append(out["V_RES_STD"].shape)
     assert len(set(shapes)) == 1, "TEM output shape varies across ERA5 files"
-
-
-# ===========================================================================
-# Real-data comparison tests — skipped when external files are absent
-# ===========================================================================
-
-def test_read_era5_real_shape():
-    if not ERA5_REAL.exists():
-        pytest.skip("real ERA5 file not found")
-    req = ["THETA", "U", "V", "OMEGA", "PRESS"]
-    ds = readAndTransposeData(str(ERA5_REAL), req, "hybrid", "lat", "lon")
-    assert ds.sizes["hybrid"] == 137
-    assert ds.sizes["lat"]    == 181
-    assert ds.sizes["lon"]    == 360
-
-
-def test_read_clams_theta_real_shape():
-    if not CLAMS_THETA_REAL.exists():
-        pytest.skip("real CLAMS-theta file not found")
-    ds = readAndTransposeData(str(CLAMS_THETA_REAL), ["BA"], "theta", "lat", "lon")
-    assert ds.sizes["theta"] == 31
-    assert ds.sizes["lat"]   == 91
-    assert ds.sizes["lon"]   == 121
-
-
-def test_read_clams_press_real_shape():
-    if not CLAMS_PRESS_REAL.exists():
-        pytest.skip("real CLAMS-press file not found")
-    ds = readAndTransposeData(str(CLAMS_PRESS_REAL), ["BA"], "press", "lat", "lon")
-    assert ds.sizes["press"] == 39
-    assert ds.sizes["lat"]   == 91
-    assert ds.sizes["lon"]   == 121
-
-
-@need_theta_ref
-def test_real_theta_chi_bar_matches_reference(real_theta_result):
-    result, *_ = real_theta_result
-    ref = xr.open_dataset(str(REF_THETA_FILE))
-    computed = result["BA_chi_bar"][0]
-    computed_vals = computed.magnitude if hasattr(computed, "magnitude") else np.array(computed)
-    expected = ref["BA_chi_bar"].values
-    ref.close()
-    mask = np.isfinite(computed_vals) & np.isfinite(expected) & (np.abs(computed_vals) < 1e20)
-    assert mask.sum() > 0
-    np.testing.assert_allclose(computed_vals[mask], expected[mask], rtol=1e-5,
-                               err_msg="BA_chi_bar does not match reference output")
-
-
-@need_tem_ref
-def test_real_tem_output_vars_match_reference_vars(real_tem_result):
-    ds = real_tem_result
-    ref = xr.open_dataset(str(TEM_REF_FILE))
-    _optional = {
-        "dU_dt",
-        "vPrime", "uPrime", "thetaPrime", "wPrime",
-        "vPrimeThetaPrime", "vPrimeUPrime", "wPrimeUPrime",
-        "vPrimeUPrimeBar", "vPrimeThetaPrimeBar", "wPrimeUPrimeBar",
-        "vPrimeThetaPrimeWaveN", "vPrimeUPrimeWaveN", "wPrimeUPrimeWaveN",
-        "THETA_DOT_TOT", "TEMP", "GPH", "SH",
-        "TROP1_Z", "TROP1_TEMP", "TROP1_PRESS", "TROP1_THETA",
-        "EPFVert_WaveN", "EPFLat_WaveN", "divEPFVert_WaveN", "divEPFLat_WaveN", "divEPF_WaveN",
-    }
-    ref_vars = set(ref.data_vars) - _optional
-    ref.close()
-    for var in ref_vars:
-        assert var in ds, f"Variable {var!r} in reference but missing from computed output"
-
-
-@need_tem_ref
-def test_real_tem_v_res_std_sign_agrees_with_reference(real_tem_result):
-    ds = real_tem_result
-    ref = xr.open_dataset(str(TEM_REF_FILE))
-    computed = ds["V_RES_STD"].values
-    expected = np.squeeze(ref["V_RES_STD"].values)
-    ref.close()
-    mask = np.isfinite(computed) & np.isfinite(expected) & (np.abs(expected) > 0.01)
-    assert mask.sum() > 100
-    sign_agreement = np.mean(np.sign(computed[mask]) == np.sign(expected[mask]))
-    assert sign_agreement > 0.7, (
-        f"V_RES_STD sign agreement with reference is only {sign_agreement:.1%}"
-    )

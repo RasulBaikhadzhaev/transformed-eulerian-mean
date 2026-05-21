@@ -1,5 +1,9 @@
 # Transformed Eulerian Mean
 
+> **Before publishing:** Update the Zenodo DOI badge below and in `CITATION.cff` with the real DOI after uploading to Zenodo. Also update the title, authors, and journal details in `CITATION.cff`.
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+
 A Python package for Transformed Eulerian Mean (TEM) diagnostics of atmospheric circulation.
 TEM separates the meridional circulation into a residual mean flow and eddy-driven components,
 making it a standard framework for studying stratospheric dynamics and tracer transport.
@@ -26,7 +30,7 @@ See the [Pixi installation guide](https://pixi.sh/latest/#installation).
 ## Installation
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/RasulBaikhadzhaev/transformed-eulerian-mean.git
 cd TEM_pkg
 pixi install
 ```

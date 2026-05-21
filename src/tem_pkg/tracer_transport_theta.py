@@ -1,4 +1,9 @@
+from __future__ import annotations
+
+from typing import Any
+
 import numpy as np
+import xarray as xr
 from metpy.units import units
 from scipy.integrate import cumulative_trapezoid
 
@@ -8,7 +13,7 @@ from .interpolation import interpolateToTheta, interpolateToThetaAndCombineData
 from .utils import addRatioUnits, binData, nanGradient
 
 
-def tracerTransport(interpolatedDataset, tomlConfig):
+def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[dict, np.ndarray, Any]:
 
     addRatioUnits()
     lats = np.array(interpolatedDataset.lat)
@@ -186,13 +191,13 @@ def tracerTransport(interpolatedDataset, tomlConfig):
     return dataToSave, lats, thetaLevels
 
 
-def init_worker(shared_counter):
+def init_worker(shared_counter: Any) -> None:
     ''' store the counter for later use to calculate percent done'''
     global counter
     counter = shared_counter
 
 
-def mainCalcs(tomlConfig, count, pathsAndTime='', reqVarsWithTracers='', pathDictionary='', reqVars=''):    
+def mainCalcs(tomlConfig: dict, count: int, pathsAndTime: Any = '', reqVarsWithTracers: Any = '', pathDictionary: Any = '', reqVars: Any = '') -> None:
     try:
         if tomlConfig['tracerDataInMetFiles']: # if met and tracer data are in the same files.
             timeStamp = list(pathsAndTime.index)[count]

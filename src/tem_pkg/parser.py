@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import argparse
 
 _CFG = 'from config file'
 
 
-def _add_common_args(parser):
+def _add_common_args(parser: argparse.ArgumentParser) -> None:
     """Add arguments present in all three tools."""
     parser.add_argument("--outputDirectory",
                         default=_CFG,
@@ -114,7 +116,7 @@ def _add_common_args(parser):
                              "Set to '' if files have no time dimension.")
 
 
-def _add_tracer_args(parser):
+def _add_tracer_args(parser: argparse.ArgumentParser) -> None:
     """Add arguments shared by both tracer transport tools."""
     parser.add_argument("--tracerDataInMetFiles",
                         default=_CFG,
@@ -189,7 +191,7 @@ def _add_tracer_args(parser):
                              "(same format as timeInfoInFileNames).")
 
 
-def residual_circ_parser():
+def residual_circ_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Compute residual mean meridional circulation and Eliassen-Palm flux diagnostics.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -238,7 +240,7 @@ def residual_circ_parser():
     return parser
 
 
-def tTransport_theta_parser():
+def tTransport_theta_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Compute tracer transport diagnostics in potential temperature (theta) coordinates.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -252,7 +254,7 @@ def tTransport_theta_parser():
     return parser
 
 
-def tTransport_press_parser():
+def tTransport_press_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Compute tracer transport diagnostics in log-pressure altitude coordinates.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)

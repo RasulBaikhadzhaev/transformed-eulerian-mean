@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import warnings
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -12,7 +15,7 @@ from .interpolation import alt2press, interpolateToLogPressure
 from .utils import nanGradient
 
 
-def TEMCalcs(tomlConfig, datasetLogPress, time):
+def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dataset:
     """
     Description:
     Calculates residual mean meridional flow (VBarStar, WBarStar), Eliassen-Pulm flux, its vertical and latitudinal
@@ -320,7 +323,7 @@ def TEMCalcs(tomlConfig, datasetLogPress, time):
     return dsOut
 
 
-def _run_tem_and_attach_vars(tomlConfig, datasetLogPress, timestamp, saveInterpolatedZonalMeanVars, saveZonalMeanVars):
+def _run_tem_and_attach_vars(tomlConfig: dict, datasetLogPress: xr.Dataset, timestamp: Any, saveInterpolatedZonalMeanVars: list[str], saveZonalMeanVars: list[str]) -> xr.Dataset:
     dsOut = TEMCalcs(tomlConfig, datasetLogPress, timestamp)
     if saveInterpolatedZonalMeanVars:
         dsOut[saveInterpolatedZonalMeanVars] = datasetLogPress[saveInterpolatedZonalMeanVars]
@@ -329,7 +332,7 @@ def _run_tem_and_attach_vars(tomlConfig, datasetLogPress, timestamp, saveInterpo
     return dsOut
 
 
-def _finalize_mean(dsAccum, dsU, count, time1st, last_instance):
+def _finalize_mean(dsAccum: xr.Dataset, dsU: xr.Dataset, count: int, time1st: Any, last_instance: xr.Dataset) -> xr.Dataset:
     dsOut = dsAccum / count
     dsOut.attrs = last_instance.attrs
     for variable in dsOut.data_vars:
@@ -342,7 +345,7 @@ def _finalize_mean(dsAccum, dsU, count, time1st, last_instance):
     return dsOut
 
 
-def _build_output_filename(tomlConfig, outTime):
+def _build_output_filename(tomlConfig: dict, outTime: pd.Timestamp) -> str:
     prefix = f"{tomlConfig['outputDirectory']}/{tomlConfig['outPrefix']}"
     mean = str(tomlConfig['outputTemporalMean']).lower()
     if mean in ['monthly', 'month']:
@@ -353,20 +356,20 @@ def _build_output_filename(tomlConfig, outTime):
         return f"{prefix}_{outTime.year}_{outTime.month:02d}_{outTime.day:02d}_{outTime.hour:02d}_{outTime.minute:02d}.nc"
 
 
-def _accumulate(dsOut, dsU, dsInstance):
+def _accumulate(dsOut: xr.Dataset, dsU: xr.Dataset, dsInstance: xr.Dataset) -> tuple[xr.Dataset, xr.Dataset]:
     """Add dsInstance into the running sum dsAccum; return updated (dsAccum, dsU)."""
     dsU_instance = dsInstance.U.expand_dims(time=dsInstance.coords['time'])
     dsU = xr.merge([dsU, dsU_instance], compat='override', join='outer')
     return dsOut + dsInstance.squeeze(), dsU
 
 
-def init_worker(shared_counter):
+def init_worker(shared_counter: Any) -> None:
     ''' store the counter for later use to calculate percent done'''
     global counter
     counter = shared_counter
 
 
-def mainCalcs(pathsAndTimeChunk, reqVars, tomlConfig, saveInterpolatedZonalMeanVars=[], saveZonalMeanVars=[]):
+def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: dict, saveInterpolatedZonalMeanVars: list[str] = [], saveZonalMeanVars: list[str] = []) -> None:
 
     global counter
     timeDim = tomlConfig.get('timeDim', '')
