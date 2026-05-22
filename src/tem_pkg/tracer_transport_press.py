@@ -230,7 +230,7 @@ def mainCalcs(tomlConfig: dict, count: int, pathsAndTime: Any = '', reqVarsWithT
         if tomlConfig['tracerDataInMetFiles']: # if met and tracer data are in the same files.
             timeStamp = list(pathsAndTime.index)[count]
             
-            dataset = readAndTransposeData(pathsAndTime['Path'][count], reqVarsWithTracers, tomlConfig['vertDim'], 
+            dataset = readAndTransposeData(pathsAndTime['Path'].iloc[count], reqVarsWithTracers, tomlConfig['vertDim'], 
                                         tomlConfig['latDim'], tomlConfig['lonDim'])
             
             interpolatedDataset = interpolateToLogPressure(dataset, reqVarsWithTracers, tomlConfig['verticalDimensionType'], tomlConfig['targetLevels'], 
@@ -265,4 +265,4 @@ def mainCalcs(tomlConfig: dict, count: int, pathsAndTime: Any = '', reqVarsWithT
 
     except Exception as e:
             # Raise am exception that includes the path context
-            raise type(e)(f"[pathsAndTime: {pathsAndTime['Path'][count]}] {str(e)}").with_traceback(e.__traceback__)
+            raise type(e)(f"[pathsAndTime: {pathsAndTime['Path'].iloc[count]}] {str(e)}").with_traceback(e.__traceback__)
