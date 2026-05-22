@@ -13,6 +13,63 @@ from metpy.units import units
 from .constants import P0, H
 
 
+def _interp1d_3d(target_1d: np.ndarray, source_3d: np.ndarray, *data_arrays: np.ndarray) -> list[np.ndarray]:
+    """Linear interpolation of multiple 3-D arrays along axis 0, sharing weights.
+
+    Computes binary-search indices and linear weights once from source_3d and
+    applies them to every data array, avoiding the per-variable overhead of
+    calling MetPy interpolate_1d in a loop.
+
+    Parameters
+    ----------
+    target_1d  : (T,) monotonically increasing target coordinate values
+    source_3d  : (S, H, W) source coordinate field (will be sorted if decreasing at [0,0])
+    *data_arrays: (S, H, W) data arrays to interpolate, in the same coordinate order
+
+    Returns
+    -------
+    list of (T, H, W) float32 arrays, one per input data array; out-of-bounds set to NaN
+    """
+    S, H, W = source_3d.shape
+    cols = H * W
+
+    # Ensure source increases along axis 0 (e.g. log-pressure may decrease)
+    if source_3d[0, 0, 0] > source_3d[-1, 0, 0]:
+        source_3d = source_3d[::-1]
+        data_arrays = tuple(d[::-1] for d in data_arrays)
+
+    src = source_3d.reshape(S, cols)  # (S, cols)
+    dats = [d.reshape(S, cols).astype('f4') for d in data_arrays]
+    col_arange = np.arange(cols)
+
+    src_min = src[0]   # (cols,) — monotone increasing → first row is minimum
+    src_max = src[-1]  # (cols,)
+
+    T = len(target_1d)
+    out_arrays = [np.empty((T, cols), dtype='f4') for _ in data_arrays]
+
+    for ti in range(T):
+        t_val = float(target_1d[ti])
+        oob = (t_val < src_min) | (t_val > src_max)
+
+        # Last source index <= t_val for each column
+        idx = (src <= t_val).sum(axis=0) - 1
+        idx = np.clip(idx, 0, S - 2)
+
+        lo_src = src[idx, col_arange]
+        hi_src = src[idx + 1, col_arange]
+        denom = hi_src - lo_src
+        with np.errstate(divide='ignore', invalid='ignore'):
+            wt = np.where(denom != 0, (t_val - lo_src) / denom, 0.5)
+
+        for j, dat in enumerate(dats):
+            row = dat[idx, col_arange] + wt * (dat[idx + 1, col_arange] - dat[idx, col_arange])
+            row[oob] = np.nan
+            out_arrays[j][ti] = row.astype('f4')
+
+    return [a.reshape(T, H, W) for a in out_arrays]
+
+
 def _build_interpolated_dataset(dataset: xr.Dataset, variables: list[str], target_coord: str, out_coord_values: Any,
                                  interp_target: Any, source_coord: Any, lat_dim: str, lon_dim: str,
                                  interp_fn: Callable, copy_attrs: bool = True, cast_single: bool = True) -> xr.Dataset:
@@ -23,14 +80,25 @@ def _build_interpolated_dataset(dataset: xr.Dataset, variables: list[str], targe
     out_coord_values: array — values stored in the output coordinate (e.g. km levels)
     interp_target   : array — target passed to interp_fn (may differ from out_coord_values, e.g. log-pressure)
     source_coord    : array — source coordinate passed to interp_fn
-    interp_fn       : callable(interp_target, source_coord, data, axis=0)
+    interp_fn       : callable — retained for API compatibility (unused when source_coord is 3-D)
     copy_attrs      : if True copy full attrs dict; if False copy only units
     cast_single     : if True store data as float32 (np.single); keep original dtype otherwise
     """
-    inData = {v: np.single(np.array(dataset[v])) * getattr(units, dataset[v].units)
-              for v in variables}
-    interped = [interp_fn(interp_target, source_coord, inData[v], axis=0) for v in variables]
-    target_data = {v: (np.single(interped[i]) if cast_single else interped[i]) for i, v in enumerate(variables)}
+    raw_data = [np.single(np.array(dataset[v])) for v in variables]
+    src = source_coord.magnitude if hasattr(source_coord, 'magnitude') else source_coord
+    tgt_raw = interp_target.magnitude if hasattr(interp_target, 'magnitude') else interp_target
+
+    if src.ndim == 3:
+        tgt_1d = np.asarray(tgt_raw).ravel()
+        interped_arrays = _interp1d_3d(tgt_1d, src, *raw_data)
+        target_data = {v: (np.single(interped_arrays[i]) if cast_single else interped_arrays[i])
+                       for i, v in enumerate(variables)}
+    else:
+        # 1-D source coordinate: fall back to MetPy for non-standard cases
+        inData = {v: np.single(np.array(dataset[v])) * getattr(units, dataset[v].units)
+                  for v in variables}
+        interped = [interp_fn(interp_target, source_coord, inData[v], axis=0) for v in variables]
+        target_data = {v: (np.single(interped[i]) if cast_single else interped[i]) for i, v in enumerate(variables)}
 
     coord_vals = out_coord_values.magnitude if hasattr(out_coord_values, 'units') else out_coord_values
     coord_units = str(out_coord_values.units) if hasattr(out_coord_values, 'units') else 'km'
