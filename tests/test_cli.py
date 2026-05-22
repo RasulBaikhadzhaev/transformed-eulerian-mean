@@ -99,7 +99,7 @@ def test_rescirc_all_core_flag_accepted(tmp_path):
     text = _RESCIRC_CFG.read_text()
     text = re.sub(
         r"^outputDirectory\s*=\s*'[^']*'",
-        f"outputDirectory = '{tmp_path}'",
+        lambda _: f"outputDirectory = '{tmp_path.as_posix()}'",
         text,
         flags=re.MULTILINE,
     )
@@ -229,7 +229,7 @@ def test_tracer_names_not_a_list_exits(tmp_path):
     text = _PRESS_CFG.read_text()
     text = re.sub(
         r"^outputDirectory\s*=\s*'[^']*'",
-        f"outputDirectory = '{tmp_path}'",
+        lambda _: f"outputDirectory = '{tmp_path.as_posix()}'",
         text,
         flags=re.MULTILINE,
     )
@@ -259,7 +259,7 @@ def _rescirc_cfg_with_overrides(tmp_path, **overrides):
     text = _RESCIRC_CFG.read_text()
     text = re.sub(
         r"^outputDirectory\s*=\s*'[^']*'",
-        f"outputDirectory = '{tmp_path}'",
+        lambda _: f"outputDirectory = '{tmp_path.as_posix()}'",
         text,
         flags=re.MULTILINE,
     )
@@ -389,7 +389,7 @@ def _theta_cfg_with_overrides(tmp_path, **overrides):
     text = _THETA_CFG.read_text()
     text = re.sub(
         r"^outputDirectory\s*=\s*'[^']*'",
-        f"outputDirectory = '{tmp_path}'",
+        lambda _: f"outputDirectory = '{tmp_path.as_posix()}'",
         text,
         flags=re.MULTILINE,
     )
@@ -435,7 +435,7 @@ def _press_cfg_with_overrides(tmp_path, **overrides):
     text = _PRESS_CFG.read_text()
     text = re.sub(
         r"^outputDirectory\s*=\s*'[^']*'",
-        f"outputDirectory = '{tmp_path}'",
+        lambda _: f"outputDirectory = '{tmp_path.as_posix()}'",
         text,
         flags=re.MULTILINE,
     )
@@ -576,7 +576,7 @@ def test_theta_all_cores_flag(tmp_path):
     text = _THETA_CFG.read_text()
     text = re.sub(
         r"^outputDirectory\s*=\s*'[^']*'",
-        f"outputDirectory = '{tmp_path}'",
+        lambda _: f"outputDirectory = '{tmp_path.as_posix()}'",
         text,
         flags=re.MULTILINE,
     )
