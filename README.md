@@ -1,6 +1,6 @@
 # Transformed Eulerian Mean
 
-> **Before publishing:** Update the Zenodo DOI badge below and in `CITATION.cff` with the real DOI after uploading to Zenodo. Also update the title, authors, and journal details in `CITATION.cff`.
+> **Before publishing:** CHECK EQUATIONS IN THE README SOME ARE NOT DISPLAYED PROPERLY Update the Zenodo DOI badge below and in `CITATION.cff` with the real DOI after uploading to Zenodo. Also update the title, authors, and journal details in `CITATION.cff`.
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 
