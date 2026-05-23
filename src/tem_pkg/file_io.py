@@ -10,19 +10,30 @@ import xarray as xr
 
 
 def extractTimeFromFileNames(filesPaths: list, timeInfoInFileNames: str) -> pd.DatetimeIndex:
-    '''
-    Parses timestamps from file names based on a user-provided template.
+    """
+    Parse timestamps from file names based on a user-provided template.
 
-    Accepts 'YYYY' (or 'YY' if century information is not in file names) for
-    year, 'MM' for month, 'DD' for day, 'HH' for hour, 'mm' for minute, and
-    'ss' for second. At least the year position must be given; include all
-    other available time fields. Only one '*' is allowed and it must be the
-    first or last character; all non-time characters must be represented by '?'.
+    Accepts ``'YYYY'`` (or ``'YY'`` if century is absent) for year, ``'MM'``
+    for month, ``'DD'`` for day, ``'HH'`` for hour, ``'mm'`` for minute, and
+    ``'ss'`` for second. At least the year position must be given; include all
+    other available time fields. Only one ``'*'`` wildcard is allowed and it
+    must be the first or last character; all non-time characters must be
+    represented by ``'?'``.
 
-    Examples:
-        '*YYMMDDHH???' for era5_10120100.nc
-        'mm?HH?MM?DD?YYYY*' for 50_18_10_25_1990_data.nc
-    '''
+    Parameters
+    ----------
+    filesPaths : list of Path
+        File paths whose names contain embedded timestamps.
+    timeInfoInFileNames : str
+        Template string describing the position of time tokens in the filename.
+        Examples: ``'*YYMMDDHH???'`` for ``era5_10120100.nc``;
+        ``'mm?HH?MM?DD?YYYY*'`` for ``50_18_10_25_1990_data.nc``.
+
+    Returns
+    -------
+    pd.DatetimeIndex
+        Parsed timestamps in the same order as *filesPaths*.
+    """
     if 'YYYY' in timeInfoInFileNames:
         yearString = 'YYYY'
     elif 'YY' in timeInfoInFileNames:
@@ -73,8 +84,28 @@ def _load_and_filter_file_paths(inputDir: str, fileNames: str, timeInfoInFileNam
     """
     Shared file-discovery and filtering logic for both collectFileNames variants.
 
-    Returns filesPathAndTime (DataFrame with Path column, time index), sorted and
-    filtered by date range and hoursToKeep.
+    Parameters
+    ----------
+    inputDir : str
+        Directory path or path to a ``.txt`` file listing NetCDF paths.
+    fileNames : str
+        Glob pattern used with ``rglob`` when *inputPathType* is ``'directory'``.
+    timeInfoInFileNames : str
+        Template passed to :func:`extractTimeFromFileNames`.
+    dateStart : str
+        Exclude files before this date (``'YYYY-MM-DD-HH'`` or ``''``).
+    dateEnd : str
+        Exclude files after this date (``'YYYY-MM-DD-HH'`` or ``''``).
+    hoursToKeep : list of int
+        Restrict to these hours of the day; keep all hours if empty.
+    inputPathType : str
+        ``'directory'`` (rglob search) or ``'.txt'`` (read paths from file).
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame with a ``Path`` column and a DatetimeIndex, sorted
+        ascending and filtered by date range and *hoursToKeep*.
     """
     if inputPathType in ('directory', 'Directory'):
         if not Path(inputDir).is_dir():
@@ -91,7 +122,7 @@ def _load_and_filter_file_paths(inputDir: str, fileNames: str, timeInfoInFileNam
             filesPaths = [Path(line.strip()) for line in txtFile]
         if not filesPaths:
             print("ERROR: No input files found. Please check if the input .txt file exists and\n\n"
-                  "includes path(s) to exising NetCDF file(s) with data for TEM calculations")
+                  "includes path(s) to existing NetCDF file(s) with data for TEM calculations")
             sys.exit(1)
 
     time = extractTimeFromFileNames(filesPaths, timeInfoInFileNames)
@@ -122,26 +153,45 @@ def _load_and_filter_file_paths(inputDir: str, fileNames: str, timeInfoInFileNam
 
 def collectFileNames(inputDir: str, fileNames: str, timeInfoInFileNames: str, outputDir: str = '', dateStart: str = '', dateEnd: str = '',
                      outPrefix: str = '', outDirSkip: int = 0, inputPathType: str = 'directory', hoursToKeep: list = [], outputTemporalMean: str = '') -> tuple[pd.DataFrame, Any, Any]:
-    '''
-    Gathers and filters input file paths based on time ranges and existence of output files.
+    """
+    Gather and filter input file paths for the residual-circulation tool.
 
-    Arguments:
-        inputDir: input directory
-        fileNames: file names; rglob is used to find files with matching names
-        outputDir: output directory, only used to filter already-processed timestamps
-        dateStart: YYYY-MM-DD-HH format; files before this date are excluded
-        dateEnd: YYYY-MM-DD-HH format; files after this date are excluded
-        outPrefix: prefix given to output files
-        outDirSkip: skip timestamps for which an output file already exists
-        inputPathType: 'directory' or '.txt'
-        hoursToKeep: restrict to these hours of day; all hours kept if empty
-        outputTemporalMean: 'monthly', 'daily', or falsy
+    Parameters
+    ----------
+    inputDir : str
+        Input directory or ``.txt`` file listing NetCDF paths.
+    fileNames : str
+        Glob pattern for file discovery (used with ``rglob``).
+    timeInfoInFileNames : str
+        Template describing time-token positions in file names.
+    outputDir : str
+        Output directory; used only to identify already-processed timestamps.
+    dateStart : str
+        Exclude files before this date (``'YYYY-MM-DD-HH'`` or ``''``).
+    dateEnd : str
+        Exclude files after this date (``'YYYY-MM-DD-HH'`` or ``''``).
+    outPrefix : str
+        Prefix of output files, used to detect already-processed timestamps.
+    outDirSkip : int
+        If truthy, skip timestamps whose output file already exists.
+    inputPathType : str
+        ``'directory'`` or ``'.txt'``.
+    hoursToKeep : list of int
+        Restrict to these hours of the day; keep all if empty.
+    outputTemporalMean : str
+        ``'monthly'``, ``'daily'``, or falsy. When set, the already-done skip
+        logic is disabled because output filenames differ from per-file names.
 
-    Returns:
-        filesPathsAndTime: DataFrame with Path and time index
-        missingTimeStamps: timestamps absent from the expected regular grid
-        expectedFrequency: modal time step inferred from the file list
-    '''
+    Returns
+    -------
+    filesPathsAndTime : pd.DataFrame
+        DataFrame with a ``Path`` column and a DatetimeIndex.
+    missingTimeStamps : pd.DatetimeIndex or pd.DataFrame
+        Timestamps absent from the expected regular grid, or an empty
+        DataFrame when fewer than three files are found.
+    expectedFrequency : str or pd.DateOffset or ``''``
+        Modal time step inferred from the file list.
+    """
     filesPathAndTime = _load_and_filter_file_paths(
         inputDir, fileNames, timeInfoInFileNames, dateStart, dateEnd, hoursToKeep, inputPathType)
 
@@ -181,13 +231,45 @@ def collectFileNames(inputDir: str, fileNames: str, timeInfoInFileNames: str, ou
 
 def collectFileNamesTTransport(inputDir: str, fileNames: str, timeInfoInFileNames: str, outputDir: str = '', dateStart: str = '', dateEnd: str = '',
                      outPrefix: str = '', outDirSkip: int = 0, inputPathType: str = 'directory', hoursToKeep: list = []) -> tuple[pd.DataFrame, list, Any]:
-    '''
-    Gathers and filters input file paths for tracer transport tools.
+    """
+    Gather and filter input file paths for the tracer-transport tools.
 
-    Same filtering logic as collectFileNames but without outputTemporalMean
-    support, and with a simpler missing-timestamp estimate based on the modal
-    time delta rather than pd.infer_freq.
-    '''
+    Same filtering logic as :func:`collectFileNames` but without
+    ``outputTemporalMean`` support, and with a simpler missing-timestamp
+    estimate (modal time delta rather than ``pd.infer_freq``).
+
+    Parameters
+    ----------
+    inputDir : str
+        Input directory or ``.txt`` file listing NetCDF paths.
+    fileNames : str
+        Glob pattern for file discovery.
+    timeInfoInFileNames : str
+        Template describing time-token positions in file names.
+    outputDir : str
+        Output directory; used only when *outDirSkip* is set.
+    dateStart : str
+        Exclude files before this date (``'YYYY-MM-DD-HH'`` or ``''``).
+    dateEnd : str
+        Exclude files after this date (``'YYYY-MM-DD-HH'`` or ``''``).
+    outPrefix : str
+        Prefix of output files, used to detect already-processed timestamps.
+    outDirSkip : int
+        If 1, skip timestamps whose output file already exists.
+    inputPathType : str
+        ``'directory'`` or ``'.txt'``.
+    hoursToKeep : list of int
+        Restrict to these hours of the day; keep all if empty.
+
+    Returns
+    -------
+    filesPathsAndTime : pd.DataFrame
+        DataFrame with a ``Path`` column and a DatetimeIndex.
+    missingTimeStamps : list of pd.Timestamp
+        Timestamps absent from the expected regular grid.
+    expectedFrequency : pd.Timedelta
+        Modal time step inferred from consecutive file timestamps.
+    """
     filesPathAndTime = _load_and_filter_file_paths(
         inputDir, fileNames, timeInfoInFileNames, dateStart, dateEnd, hoursToKeep, inputPathType)
 
@@ -210,8 +292,31 @@ def collectFileNamesTTransport(inputDir: str, fileNames: str, timeInfoInFileName
 
 def chunkMetFilesPathsForBinning(metFilesPaths: pd.DataFrame, tracerFilesPaths: pd.DataFrame, MetDataBinningTime: int | str, tracerExpectedFrequency: Any, metExpectedFrequency: Any) -> dict:
     """
-    Pairs met data files with tracer files, potentially averaging multiple met
-    files to match the lower temporal frequency of the tracer data.
+    Pair met-data files with tracer files, computing weights for temporal averaging.
+
+    When met data is at a higher temporal frequency than tracer data, multiple
+    met files are averaged (with equal or time-proximity weights) to produce
+    one met dataset per tracer timestamp.
+
+    Parameters
+    ----------
+    metFilesPaths : pd.DataFrame
+        DataFrame with ``Path`` column and DatetimeIndex for met files.
+    tracerFilesPaths : pd.DataFrame
+        DataFrame with ``Path`` column and DatetimeIndex for tracer files.
+    MetDataBinningTime : int or ``'auto'``
+        ``'auto'`` infers the number of met files to bin from the frequency
+        ratio; an integer picks the *N* closest met files to each tracer
+        timestamp with equal weight ``1/N``.
+    tracerExpectedFrequency : pd.Timedelta or pd.DateOffset
+        Modal time step of the tracer file series.
+    metExpectedFrequency : pd.Timedelta or pd.DateOffset
+        Modal time step of the met file series.
+
+    Returns
+    -------
+    dict
+        Mapping ``{tracer_timestamp: [tracer_path, met_paths_array, weights_array]}``.
     """
     pathDictionary = {}
 
@@ -273,20 +378,75 @@ def chunkMetFilesPathsForBinning(metFilesPaths: pd.DataFrame, tracerFilesPaths: 
 def readAndTransposeData(
     filePath: str, reqVars: list[str], vertDimName: str, latDimName: str, lonDimName: str,
     saveInterpolatedZonalMeanVars: list[str] = [], saveZonalMeanVars: list[str] = [],
+    timeDimName: str = '',
 ) -> xr.Dataset:
-    '''
-    Reads a NetCDF file and standardizes dimension order to [Vertical, Latitude, Longitude].
-    '''
+    """
+    Read a NetCDF file and standardize dimension order to (vertical, lat, lon).
+
+    Squeezes any length-1 dimensions (e.g. a single time step). If *timeDimName*
+    is provided and that dimension remains after squeezing, it is placed first.
+
+    Parameters
+    ----------
+    filePath : str or Path
+        Path to the NetCDF file.
+    reqVars : list of str
+        Variables to load.
+    vertDimName : str
+        Name of the vertical dimension in the file.
+    latDimName : str
+        Name of the latitude dimension in the file.
+    lonDimName : str
+        Name of the longitude dimension in the file.
+    saveInterpolatedZonalMeanVars : list of str
+        Additional variables to load for zonal-mean output after interpolation.
+    saveZonalMeanVars : list of str
+        Additional variables to load for direct zonal-mean output.
+    timeDimName : str
+        Name of the time dimension in the file. Pass ``''`` (default) if files
+        have no time dimension or it should be squeezed away.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset with dimensions ordered as (vertical, lat, lon), or
+        (timeDimName, vertical, lat, lon) when a time dimension is present.
+    """
     dataset = xr.open_dataset(filePath)[reqVars + saveInterpolatedZonalMeanVars + saveZonalMeanVars].squeeze()
-    if 'time' in dataset.dims:
-        dataset = dataset.transpose('time', vertDimName, latDimName, lonDimName)
+    if timeDimName and timeDimName in dataset.dims:
+        dataset = dataset.transpose(timeDimName, vertDimName, latDimName, lonDimName)
     else:
         dataset = dataset.transpose(vertDimName, latDimName, lonDimName)
     return dataset
 
 
 def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, reqVars: list[str], vertDimName: str, latDimName: str, lonDimName: str) -> xr.Dataset:
-    '''Computes a weighted average of multiple NetCDF files (e.g., for time-binning met data).'''
+    """
+    Read multiple NetCDF files and compute a weighted average across them.
+
+    Used to temporally bin met-data files to match a lower-frequency tracer
+    dataset. Weights must sum to 1 for a proper average.
+
+    Parameters
+    ----------
+    filesPaths : np.ndarray of str/Path
+        Paths to the NetCDF files to average.
+    weights : np.ndarray of float
+        Per-file weights; must have the same length as *filesPaths*.
+    reqVars : list of str
+        Variables to load and average.
+    vertDimName : str
+        Name of the vertical dimension, used to set final transpose order.
+    latDimName : str
+        Name of the latitude dimension.
+    lonDimName : str
+        Name of the longitude dimension.
+
+    Returns
+    -------
+    xr.Dataset
+        Weighted-mean dataset with dimensions ordered as (vertical, lat, lon).
+    """
     for index, path in enumerate(filesPaths):
         dataset = xr.open_dataset(path)[reqVars].squeeze()
         if index == 0:
@@ -301,8 +461,23 @@ def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, r
 
 def saveOut(dataToSave: dict, tomlConfig: dict, timeStamp: Any, lats: np.ndarray, thetaLevels: Any) -> None:
     """
-    Formats the final results and Fourier components into an xarray dataset
-    and saves it to a NetCDF file.
+    Package tracer-transport results into an xarray Dataset and write to NetCDF.
+
+    Parameters
+    ----------
+    dataToSave : dict
+        Mapping ``{var_name: [data_array, long_name, units]}``. An optional
+        ``'Fourier'`` key holds a nested dict of the same structure for wave
+        decomposition fields.
+    tomlConfig : dict
+        Configuration dict; uses ``outputDirectory``, ``outPrefix``, and
+        ``Waves`` keys.
+    timeStamp : pd.Timestamp
+        Timestamp for the output file name and the ``time`` coordinate.
+    lats : np.ndarray
+        Latitude coordinate values in degrees.
+    thetaLevels : array-like
+        Potential temperature levels (K) used as the vertical coordinate.
     """
     fnout = tomlConfig['outputDirectory'] + '/' + tomlConfig['outPrefix'] + str(timeStamp)[:-3].replace('-', '_').replace(' ', '_').replace(':', '_') + '.nc'
 

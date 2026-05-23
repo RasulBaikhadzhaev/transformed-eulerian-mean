@@ -17,26 +17,35 @@ from .utils import nanGradient
 
 def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dataset:
     """
-    Description:
-    Calculates residual mean meridional flow (VBarStar, WBarStar), Eliassen-Pulm flux, its vertical and latitudinal
-    components, its divergence and residual mean meridional stream function. Can also perform fourier decomposition of EPF
+    Compute TEM diagnostics for a single time step on a log-pressure grid.
+
+    Calculates the residual mean meridional circulation (VBarStar, WBarStar),
+    Eliassen-Palm flux and its vertical/latitudinal components, EPF divergence,
+    and the residual mean meridional stream function. Optionally performs a
+    Fourier decomposition of the EPF and eddy terms.
 
     Parameters
-    __________
-    tomlConfig       : dictionary containing parameters from toml configuration file
-    datasetLogPress  : unput dataset in log pressure coordinates 
-    time             : time of the input dataset
+    ----------
+    tomlConfig : dict
+        Configuration dict from the TOML file. Uses wind/temperature variable
+        names, ``saveEddyTerms``, ``FourierTransform``, ``Waves``, and
+        ``verticalWindType`` keys.
+    datasetLogPress : xr.Dataset
+        Input dataset on a log-pressure altitude grid with dimensions
+        (``'alt'``, ``'lat'``, ``'lon'``).
+    time : pd.Timestamp or datetime-like
+        Timestamp of the input dataset, stored in the output ``time`` coordinate.
 
     Returns
-    _______
-    dsOut       : xarray dataset containing results of the calculation
+    -------
+    xr.Dataset
+        Dataset containing TEM diagnostics on the (``'alt'``, ``'lat'``) grid,
+        with optional 3-D eddy-term variables on (``'alt'``, ``'lat'``, ``'lon'``)
+        and Fourier components on (``'alt'``, ``'lat'``, ``'waveNumber'``).
     """
 
 
-    # calculations
-    # some values are nan at every longtitudal point, so mean gives warning Mean of empty slice
-    # warnings.filterwarnings('ignore')  # ignore all warnings
-
+    # some values are nan at every longitudinal point; warnings.filterwarnings('ignore') suppresses too broadly
     if 'deg N' in datasetLogPress.lat.units:
         datasetLogPress.lat.attrs['units'] = datasetLogPress.lat.units.replace('deg N', 'degree')
     latsR = (np.array(datasetLogPress.lat) * units(datasetLogPress.lat.units)).to('radian')
@@ -126,11 +135,11 @@ def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dat
             'V': (vBar, 'meridional wind', str(vBar.units)),
             'V_RES_STD': (vBarStar.magnitude, 'V component of residual mean meridonal circulation', str(vBarStar.units)),
             'W_RES_STD': (wBarStar.magnitude, 'W component of residual mean meridonal circulation', str(wBarStar.units)),
-            'EPF_vert': (EPFVert.magnitude, 'vertical component of Eliassen-Pulm flux', str(EPFVert.units)),
-            'EPF_lat': (EPFLat.magnitude, 'latitudinal component of Eliassen-Pulm flux', str(EPFLat.units)),
-            'div_EPF_vert': (divEPFVert.magnitude, 'vertical component of Eliassen-Pulm flux divergence', str(divEPFVert.units)),
-            'div_EPF_lat': (divEPFLat.magnitude, 'zonal component of Eliassen-Pulm flux divergence', str(divEPFLat.units)),
-            'div_EPF': (divEPF.magnitude, 'Eliassen-Pulm flux divergence', str(divEPF.units)),
+            'EPF_vert': (EPFVert.magnitude, 'vertical component of Eliassen-Palm flux', str(EPFVert.units)),
+            'EPF_lat': (EPFLat.magnitude, 'latitudinal component of Eliassen-Palm flux', str(EPFLat.units)),
+            'div_EPF_vert': (divEPFVert.magnitude, 'vertical component of Eliassen-Palm flux divergence', str(divEPFVert.units)),
+            'div_EPF_lat': (divEPFLat.magnitude, 'zonal component of Eliassen-Palm flux divergence', str(divEPFLat.units)),
+            'div_EPF': (divEPF.magnitude, 'Eliassen-Palm flux divergence', str(divEPF.units)),
             'MASS_SF_RES_STD': (massSF.magnitude, 'stream function of the (barStar) residual flow', str(massSF.units))
         }
     if tomlConfig['verticalWindType'].lower() != 'missing':
@@ -157,7 +166,7 @@ def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dat
             dataToSaveWithLongitude['wPrime'] = (wPrime, 'deviation of vertical wind from zonal mean value', str(wPrime.units))
             dataToSaveWithLongitude['wPrimeUPrime'] = (wPrimeUPrime, 'mean vertical eddy momentum flux', str(wPrimeUPrime.units))
 
-        # add results with logitude dimension to the output dataset CHECK IF TIME ATTRIBUTE IS STILL REQUIRED!!!!
+        # add results with longitude dimension to the output dataset
         for variable in dataToSaveWithLongitude.keys():
             dsOut[variable] = (('alt', 'lat', 'lon'), np.single(dataToSaveWithLongitude[variable][0]))
             getattr(dsOut, variable).attrs['long_name'] = dataToSaveWithLongitude[variable][1]
@@ -167,7 +176,7 @@ def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dat
         dsOut.lon.attrs['long_name'] = 'longitude'
         dsOut.lon.attrs['units'] = str(datasetLogPress.lon.units)
         
-    # add main results to output dataset CHECK IF TIME ATTRIBUTE IS STILL REQUIRED!!!!
+    # add main results to output dataset
     for variable in dataToSave.keys():
         dsOut[variable] = (('alt', 'lat'), np.single(dataToSave[variable][0]))
         getattr(dsOut, variable).attrs['long_name'] = dataToSave[variable][1]
@@ -228,7 +237,7 @@ def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dat
         for _var in FourT:
             FourT[_var][:, :, _nyq] = FourT[_var][:, :, _nyq] / 2
 
-        if tomlConfig['saveEddyTerms']: # SHOULD FFT OR SOMETHING ELSE BE SAVED HERE?????
+        if tomlConfig['saveEddyTerms']:
             vPrimeThetaPrimeWaveN = np.real(vPrimeFFT * np.conj(thetaPrimeFFT)) / (n_valid_vt * _N / 2)
             vPrimeUPrimeWaveN = np.real(vPrimeFFT * np.conj(uPrimeFFT)) / (n_valid_uv * _N / 2)
             wPrimeUPrimeWaveN = np.real(wPrimeFFT * np.conj(uPrimeFFT)) / (n_valid_uw * _N / 2)
@@ -296,17 +305,17 @@ def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dat
                             Fourier[variable][:, :, i] = np.nansum(eddyTermsFour[variable][:, :, waveStart:], 2)
 
         dataToSaveFourier = {
-            'EPFVert_WaveN': (Fourier['EPFVert_WaveN'], 'vertical component of Eliassen-Pulm flux', str(EPFVert.units)),
-            'EPFLat_WaveN': (Fourier['EPFLat_WaveN'], 'latitudinal component of Eliassen-Pulm flux', str(EPFLat.units)),
+            'EPFVert_WaveN': (Fourier['EPFVert_WaveN'], 'vertical component of Eliassen-Palm flux', str(EPFVert.units)),
+            'EPFLat_WaveN': (Fourier['EPFLat_WaveN'], 'latitudinal component of Eliassen-Palm flux', str(EPFLat.units)),
             'divEPFVert_WaveN': (Fourier['divEPFVert_WaveN'],
-                        'vertical component of Eliassen-Pulm flux divergence', str(divEPFVert.units)),
+                        'vertical component of Eliassen-Palm flux divergence', str(divEPFVert.units)),
             'divEPFLat_WaveN': (Fourier['divEPFLat_WaveN'],
-                        'zonal component of Eliassen-Pulm flux divergence', str(divEPFLat.units)),
-            'divEPF_WaveN': (Fourier['divEPF_WaveN'], 'Eliassen-Pulm flux divergence', str(divEPF.units)),
+                        'zonal component of Eliassen-Palm flux divergence', str(divEPFLat.units)),
+            'divEPF_WaveN': (Fourier['divEPF_WaveN'], 'Eliassen-Palm flux divergence', str(divEPF.units)),
         }
 
         if tomlConfig['saveEddyTerms']:
-            dataToSaveFourier['vPrimeThetaPrimeWaveN'] = (Fourier['vPrimeThetaPrimeWaveN'], 'wave decomposition of horizontal eddy heat flux', str((vPrime * thetaPrime).units)) # CHECK UNITS
+            dataToSaveFourier['vPrimeThetaPrimeWaveN'] = (Fourier['vPrimeThetaPrimeWaveN'], 'wave decomposition of horizontal eddy heat flux', str((vPrime * thetaPrime).units))
             dataToSaveFourier['vPrimeUPrimeWaveN'] = (Fourier['vPrimeUPrimeWaveN'], 'wave decomposition of horizontal eddy momentum flux', str((vPrime * uPrime).units))
             dataToSaveFourier['wPrimeUPrimeWaveN'] = (Fourier['wPrimeUPrimeWaveN'], 'wave decomposition of vertical eddy momentum flux', str((wPrime * uPrime).units))
             
@@ -318,12 +327,34 @@ def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dat
             getattr(dsOut, variable).attrs['units'] = dataToSaveFourier[variable][2] 
             
         dsOut.coords['waveNumber'] = waveNumbers
-        dsOut.waveNumber.attrs['long_name'] = 'wave size, as number of waves per 360 degrees of logitude'
+        dsOut.waveNumber.attrs['long_name'] = 'wave size, as number of waves per 360 degrees of longitude'
 
     return dsOut
 
 
 def _run_tem_and_attach_vars(tomlConfig: dict, datasetLogPress: xr.Dataset, timestamp: Any, saveInterpolatedZonalMeanVars: list[str], saveZonalMeanVars: list[str]) -> xr.Dataset:
+    """
+    Run TEMCalcs and attach any requested passthrough variables to the result.
+
+    Parameters
+    ----------
+    tomlConfig : dict
+        Configuration dict passed through to :func:`TEMCalcs`.
+    datasetLogPress : xr.Dataset
+        Log-pressure dataset for the current time step.
+    timestamp : datetime-like
+        Timestamp for the current time step.
+    saveInterpolatedZonalMeanVars : list of str
+        Interpolated zonal-mean variables to copy from *datasetLogPress* into
+        the output dataset.
+    saveZonalMeanVars : list of str
+        Zonal-mean variables to copy directly.
+
+    Returns
+    -------
+    xr.Dataset
+        TEM output dataset with optional extra variables attached.
+    """
     dsOut = TEMCalcs(tomlConfig, datasetLogPress, timestamp)
     if saveInterpolatedZonalMeanVars:
         dsOut[saveInterpolatedZonalMeanVars] = datasetLogPress[saveInterpolatedZonalMeanVars]
@@ -333,6 +364,30 @@ def _run_tem_and_attach_vars(tomlConfig: dict, datasetLogPress: xr.Dataset, time
 
 
 def _finalize_mean(dsAccum: xr.Dataset, dsU: xr.Dataset, count: int, time1st: Any, last_instance: xr.Dataset) -> xr.Dataset:
+    """
+    Finalize a temporal mean by dividing the accumulated sum and adding dU/dt.
+
+    Parameters
+    ----------
+    dsAccum : xr.Dataset
+        Running sum of TEM output datasets.
+    dsU : xr.Dataset
+        Dataset of per-timestep U fields stacked along a ``time`` dimension,
+        used to compute the zonal-wind tendency ``dU_dt``.
+    count : int
+        Number of time steps summed into *dsAccum*.
+    time1st : pd.Timestamp
+        Timestamp of the first time step in the mean, stored as the output
+        ``time`` coordinate.
+    last_instance : xr.Dataset
+        Last individual TEM output; used to restore variable attributes lost
+        during accumulation.
+
+    Returns
+    -------
+    xr.Dataset
+        Time-mean TEM dataset with a ``dU_dt`` variable added.
+    """
     dsOut = dsAccum / count
     dsOut.attrs = last_instance.attrs
     for variable in dsOut.data_vars:
@@ -346,6 +401,26 @@ def _finalize_mean(dsAccum: xr.Dataset, dsU: xr.Dataset, count: int, time1st: An
 
 
 def _build_output_filename(tomlConfig: dict, outTime: pd.Timestamp) -> str:
+    """
+    Build the output NetCDF file path for a given timestamp.
+
+    The filename format depends on ``tomlConfig['outputTemporalMean']``:
+    monthly means use ``YYYY_MM``, daily means use ``YYYY_MM_DD``, and
+    per-file outputs use ``YYYY_MM_DD_HH_mm``.
+
+    Parameters
+    ----------
+    tomlConfig : dict
+        Configuration dict; uses ``outputDirectory``, ``outPrefix``, and
+        ``outputTemporalMean`` keys.
+    outTime : pd.Timestamp
+        Representative timestamp for the output period.
+
+    Returns
+    -------
+    str
+        Full path to the output NetCDF file.
+    """
     prefix = f"{tomlConfig['outputDirectory']}/{tomlConfig['outPrefix']}"
     mean = str(tomlConfig['outputTemporalMean']).lower()
     if mean in ['monthly', 'month']:
@@ -357,20 +432,66 @@ def _build_output_filename(tomlConfig: dict, outTime: pd.Timestamp) -> str:
 
 
 def _accumulate(dsOut: xr.Dataset, dsU: xr.Dataset, dsInstance: xr.Dataset) -> tuple[xr.Dataset, xr.Dataset]:
-    """Add dsInstance into the running sum dsAccum; return updated (dsAccum, dsU)."""
+    """
+    Add a single TEM result into a running sum and U-stack for temporal averaging.
+
+    Parameters
+    ----------
+    dsOut : xr.Dataset
+        Current accumulated sum.
+    dsU : xr.Dataset
+        Current U-field stack along the ``time`` dimension.
+    dsInstance : xr.Dataset
+        New TEM result to add.
+
+    Returns
+    -------
+    tuple[xr.Dataset, xr.Dataset]
+        Updated (accumulated sum, U-stack).
+    """
     dsU_instance = dsInstance.U.expand_dims(time=dsInstance.coords['time'])
     dsU = xr.merge([dsU, dsU_instance], compat='override', join='outer')
     return dsOut + dsInstance.squeeze(), dsU
 
 
 def init_worker(shared_counter: Any) -> None:
-    ''' store the counter for later use to calculate percent done'''
+    """
+    Initialise a pool worker by storing the shared progress counter.
+
+    Parameters
+    ----------
+    shared_counter : multiprocessing.Value
+        Shared integer incremented after each file is processed.
+    """
     global counter
     counter = shared_counter
 
 
 def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: dict, saveInterpolatedZonalMeanVars: list[str] = [], saveZonalMeanVars: list[str] = []) -> None:
+    """
+    Process one chunk of input files and write TEM diagnostics to NetCDF.
 
+    A chunk is either a single file (per-file output) or a group of files
+    sharing the same temporal-mean period (monthly or daily). When the chunk
+    contains multiple files the results are averaged before saving.
+
+    Called by the multiprocessing pool; increments the shared ``counter``
+    after each file (or chunk) is processed.
+
+    Parameters
+    ----------
+    pathsAndTimeChunk : pd.DataFrame
+        DataFrame with a ``Path`` column and a DatetimeIndex for the files in
+        this chunk.
+    reqVars : list of str
+        Meteorological variable names to load from each file.
+    tomlConfig : dict
+        Configuration dict.
+    saveInterpolatedZonalMeanVars : list of str
+        Variables to interpolate and zonal-average into the output.
+    saveZonalMeanVars : list of str
+        Variables to zonal-average directly into the output.
+    """
     global counter
     timeDim = tomlConfig.get('timeDim', '')
 
@@ -410,6 +531,7 @@ def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: d
             pathsAndTimeChunk.Path.iloc[0], reqVars,
             tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'],
             saveInterpolatedZonalMeanVars, saveZonalMeanVars,
+            timeDimName=tomlConfig.get('timeDim', ''),
         )
         if timeDim and timeDim in dataset.dims:
             mean = str(tomlConfig['outputTemporalMean']).lower()
@@ -448,6 +570,7 @@ def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: d
             dataset = readAndTransposeData(
                 path, reqVars, tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'],
                 saveInterpolatedZonalMeanVars, saveZonalMeanVars,
+                timeDimName=tomlConfig.get('timeDim', ''),
             )
             if timeDim and timeDim in dataset.dims:
                 for time2 in dataset[timeDim]:
