@@ -326,44 +326,51 @@ def chunkMetFilesPathsForBinning(metFilesPaths: pd.DataFrame, tracerFilesPaths: 
                 pathAndTime = tracerFilesPaths.join(metFilesPaths.rename(columns={'Path': 'metFilesPath'}))
                 pathAndTime.dropna(inplace=True)
                 pathAndTime['weight'] = 1
-                timestamps = pathAndTime.index
-                for timestamp in timestamps:
-                    pathDictionary[timestamp] = [pathAndTime.loc[timestamp].Path, pathAndTime.loc[timestamp].metFilesPath, pathAndTime.loc[timestamp].weight]
+                for timestamp, row in pathAndTime.iterrows():
+                    pathDictionary[timestamp] = [row.Path, row.metFilesPath, row.weight]
             else:
-                timestamps = tracerFilesPaths.index
-                for timestamp in timestamps:
-                    metDataPathOfTimestamp = metFilesPaths[(metFilesPaths.index >= timestamp - tracerExpectedFrequency / 2) &
-                                                            (metFilesPaths.index <= timestamp + tracerExpectedFrequency / 2)]
-                    if np.array(metDataPathOfTimestamp).size == 2:
-                        weight1stFile = np.abs((metDataPathOfTimestamp.index[0] - timestamp) / tracerExpectedFrequency)
-                        weight2ndFile = np.abs((metDataPathOfTimestamp.index[1] - timestamp) / tracerExpectedFrequency)
-                        pathDictionary[timestamp] = [tracerFilesPaths.loc[timestamp].Path, np.array(metDataPathOfTimestamp), [weight1stFile, weight2ndFile]]
+                # Vectorize window search: compute all lo/hi indices in one searchsorted call
+                # instead of scanning the full met DataFrame per tracer timestamp (O(N log M) vs O(N*M))
+                half = tracerExpectedFrequency / 2
+                lo_arr = metFilesPaths.index.searchsorted(tracerFilesPaths.index - half, side='left')
+                hi_arr = metFilesPaths.index.searchsorted(tracerFilesPaths.index + half, side='right')
+                for i, timestamp in enumerate(tracerFilesPaths.index):
+                    lo, hi = lo_arr[i], hi_arr[i]
+                    if hi - lo == 2:
+                        met_slice = metFilesPaths.iloc[lo:hi]
+                        weight1stFile = np.abs((met_slice.index[0] - timestamp) / tracerExpectedFrequency)
+                        weight2ndFile = np.abs((met_slice.index[1] - timestamp) / tracerExpectedFrequency)
+                        pathDictionary[timestamp] = [tracerFilesPaths.loc[timestamp].Path, np.array(met_slice.Path), [weight1stFile, weight2ndFile]]
 
         else:
-            timestamps = tracerFilesPaths.index
-            for timestamp in timestamps:
-                metDataPathOfTimestamp = metFilesPaths[(metFilesPaths.index >= timestamp - tracerExpectedFrequency / 2) &
-                                                        (metFilesPaths.index <= timestamp + tracerExpectedFrequency / 2)].copy()
-
-                if metDataPathOfTimestamp.empty:
+            # Vectorize window search (O(N log M) vs O(N*M))
+            half = tracerExpectedFrequency / 2
+            lo_arr = metFilesPaths.index.searchsorted(tracerFilesPaths.index - half, side='left')
+            hi_arr = metFilesPaths.index.searchsorted(tracerFilesPaths.index + half, side='right')
+            for i, timestamp in enumerate(tracerFilesPaths.index):
+                lo, hi = lo_arr[i], hi_arr[i]
+                if lo == hi:
                     continue
-
+                metDataPathOfTimestamp = metFilesPaths.iloc[lo:hi].copy()
                 metDataPathOfTimestamp.loc[:, 'hour'] = metDataPathOfTimestamp.index.hour
                 hourCounts = metDataPathOfTimestamp['hour'].value_counts()
-                totalWeight = 1.0
                 uniqueHours = len(hourCounts)
-                hourlyWeight = totalWeight / uniqueHours
-                weightsPerRow = hourlyWeight / hourCounts
+                weightsPerRow = (1.0 / uniqueHours) / hourCounts
                 metDataPathOfTimestamp['weight'] = metDataPathOfTimestamp['hour'].map(weightsPerRow)
-
                 pathDictionary[timestamp] = [tracerFilesPaths.loc[timestamp].Path, np.array(metDataPathOfTimestamp.Path),
-                                            np.array(metDataPathOfTimestamp.weight)]
+                                             np.array(metDataPathOfTimestamp.weight)]
 
     elif isinstance(MetDataBinningTime, int):
-        timestamps = tracerFilesPaths.index
-        for timestamp in timestamps:
-            timeDiffs = abs(metFilesPaths.index - timestamp)
-            closestRows = metFilesPaths.iloc[np.argsort(timeDiffs)[:MetDataBinningTime]]
+        # Use searchsorted to find the insertion point, then only argsort a small
+        # local window of 2*N candidates rather than the full met index (O(N log M) vs O(N*M))
+        insert_arr = metFilesPaths.index.searchsorted(tracerFilesPaths.index)
+        for i, timestamp in enumerate(tracerFilesPaths.index):
+            center = insert_arr[i]
+            lo = max(0, center - MetDataBinningTime)
+            hi = min(len(metFilesPaths), center + MetDataBinningTime)
+            candidates = metFilesPaths.iloc[lo:hi]
+            timeDiffs = abs(candidates.index - timestamp)
+            closestRows = candidates.iloc[np.argsort(timeDiffs)[:MetDataBinningTime]]
             pathDictionary[timestamp] = [tracerFilesPaths.loc[timestamp].Path, np.array(closestRows.Path),
                                          np.zeros(MetDataBinningTime) + 1/MetDataBinningTime]
 
@@ -412,7 +419,8 @@ def readAndTransposeData(
         Dataset with dimensions ordered as (vertical, lat, lon), or
         (timeDimName, vertical, lat, lon) when a time dimension is present.
     """
-    dataset = xr.open_dataset(filePath)[reqVars + saveInterpolatedZonalMeanVars + saveZonalMeanVars].squeeze()
+    with xr.open_dataset(filePath) as ds:
+        dataset = ds[reqVars + saveInterpolatedZonalMeanVars + saveZonalMeanVars].squeeze().load()
     if timeDimName and timeDimName in dataset.dims:
         dataset = dataset.transpose(timeDimName, vertDimName, latDimName, lonDimName)
     else:
@@ -448,13 +456,15 @@ def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, r
         Weighted-mean dataset with dimensions ordered as (vertical, lat, lon).
     """
     for index, path in enumerate(filesPaths):
-        dataset = xr.open_dataset(path)[reqVars].squeeze()
+        with xr.open_dataset(path) as ds:
+            dataset = ds[reqVars].squeeze().load()
         if index == 0:
             weightedMeanDataset = dataset * weights[index]
+            attrs = {v: dataset[v].attrs for v in reqVars}
         else:
             weightedMeanDataset = weightedMeanDataset + (dataset * weights[index])
     for variable in reqVars:
-        weightedMeanDataset[variable].attrs = dataset[variable].attrs
+        weightedMeanDataset[variable].attrs = attrs[variable]
         weightedMeanDataset[variable] = weightedMeanDataset[variable].transpose(vertDimName, latDimName, lonDimName)
     return weightedMeanDataset
 

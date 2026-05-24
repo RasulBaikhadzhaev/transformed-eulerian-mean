@@ -324,5 +324,8 @@ def mainCalcs(tomlConfig: dict, count: int, pathsAndTime: Any = '', reqVarsWithT
             counter.value += 1
 
     except Exception as e:
-            # Raise an exception that includes the path context
-            raise type(e)(f"[pathsAndTime: {pathsAndTime['Path'].iloc[count]}] {str(e)}").with_traceback(e.__traceback__)
+        try:
+            path_ctx = pathsAndTime['Path'].iloc[count] if hasattr(pathsAndTime, 'iloc') else list(pathDictionary.keys())[count]
+        except Exception:
+            path_ctx = '?'
+        raise type(e)(f"[path: {path_ctx}] {str(e)}").with_traceback(e.__traceback__)
