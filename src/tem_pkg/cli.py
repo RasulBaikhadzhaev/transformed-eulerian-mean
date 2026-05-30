@@ -218,7 +218,19 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
 
         pathDictionary = chunkMetFilesPathsForBinning(metPathsAndTime, tracerPathsAndTime, tomlConfig['MetDataBinningTime'], tracerExpFreq, metExpFreq)
 
-        numOfFiles = len(tracerPathsAndTime)
+        if not pathDictionary:
+            print("ERROR: No tracer timestamps could be matched to any met files.\n\n"
+                  "Check that met and tracer file date ranges overlap and that "
+                  "MetDataBinningTime is wide enough to capture at least one met file per tracer timestamp.")
+            sys.exit(1)
+
+        unmatched = [ts for ts in tracerPathsAndTime.index if ts not in pathDictionary]
+        if unmatched:
+            print(f"WARNING: {len(unmatched)} tracer timestamp(s) could not be matched to any met files and will be skipped:")
+            for ts in unmatched:
+                print(f"  {ts}")
+
+        numOfFiles = len(pathDictionary)
         numbers = list(range(len(pathDictionary)))
 
 
