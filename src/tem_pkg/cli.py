@@ -21,8 +21,8 @@ from .utils import (
 )
 
 # Suppress expected warnings. 
-# The warning "mean of empty slice" happens when zonal mean is calculated, it accures due to absence of data at every 
-# longtitudal point in places like 1000 hPa level in antarctica. Other warning occures during interpolation to pressure 
+# The warning "mean of empty slice" happens when zonal mean is calculated, it occurs due to absence of data at every
+# longitudinal point in places like 1000 hPa level in antarctica. Other warning occurs during interpolation to pressure
 # coordinates, if target pressure level is beyond input pressure values, ex when lowest pressure in input data is 0.0012 
 # hPa and targeted is 0.001. In both cases nan value is assigned for the result.
 warnings.filterwarnings('ignore', message='Mean of empty slice')
@@ -34,6 +34,14 @@ warnings.filterwarnings('ignore', message='overflow encountered')
 warnings.filterwarnings('ignore', message='invalid value encountered') 
 
 def run_residual() -> None:
+    """
+    Entry point for the ``tem-residual-circ`` CLI command.
+
+    Parses CLI arguments, merges them with the TOML config, collects and
+    filters input file paths, then dispatches per-chunk TEM calculations
+    to a multiprocessing pool. Progress is reported to stdout via a
+    daemon thread. Exits with code 1 on any unhandled exception.
+    """
     timeStart = time.time()
     from .parser import residual_circ_parser
     from .residual_circulation import init_worker, mainCalcs
@@ -67,7 +75,6 @@ def run_residual() -> None:
                 config['meridionalWindName']]
            
     saveInterpolatedZonalMeanVars = config['saveInterpolatedZonalMean']
-    # if config['saveZonalMean']:
     saveZonalMeanVars = config['saveZonalMean']
 
     pathsAndTime, missingTimeStamps, expectedFrequency = collectFileNames(inputDir=config['inputPath'], 
@@ -98,7 +105,6 @@ def run_residual() -> None:
     else:
         pathsAndTimeChunked = {index: group for index, group in pathsAndTime.groupby(pathsAndTime.index)}
 
-    # numOfChunks = len(pathsAndTimeChunked)
     reporter = threading.Thread(
             target=progress_reporter, 
             args=(sharedCounter, numOfFiles, timeStart)
@@ -126,21 +132,25 @@ def run_residual() -> None:
         reporter.join()
 
 
-    # with multiprocessing.Pool(
-    #     processes=config['processNumber'], 
-    #     initializer=init_worker, 
-    #     initargs=(sharedCounter, )
-    #     ) as p:
-        
-    #     p.starmap(mainCalcs, zip(pathsAndTimeChunked.values(), 
-    #                             repeat(reqVars), 
-    #                             repeat(config), 
-    #                             repeat(saveInterpolatedZonalMeanVars), 
-    #                             repeat(saveZonalMeanVars)))
-
-
 def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig: dict, reqVars: list[str]) -> None:
+    """
+    Shared driver for both tracer-transport entry points.
 
+    Handles file discovery (combined or separate met/tracer files), spawns a
+    progress-reporter thread, and dispatches per-file calculations to a
+    multiprocessing pool. Exits with code 1 on any unhandled exception.
+
+    Parameters
+    ----------
+    mainCalcs : Callable
+        Worker function dispatched to the pool (theta or press variant).
+    init_worker : Callable
+        Pool initializer that stores the shared counter in each worker.
+    tomlConfig : dict
+        Merged configuration dict (TOML + CLI overrides).
+    reqVars : list[str]
+        Names of meteorological variables to load from each input file.
+    """
     timeStart = time.time()
     # counter for progress
     sharedCounter = multiprocessing.Value('i', 0)
@@ -149,8 +159,6 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
     if '{tracerNames}' in tomlConfig['outPrefix']:
         if isinstance(tomlConfig['tracerNames'], list):
             tomlConfig['outPrefix'] = tomlConfig['outPrefix'].replace('{tracerNames}', '_'.join(tomlConfig['tracerNames']))
-        # elif isinstance(tomlConfig['tracerNames'], str):
-        #     tomlConfig['outPrefix'] = tomlConfig['outPrefix'].replace('{tracerNames}', tomlConfig['tracerNames'])
         else:
             print("ERROR: option 'tracerNames' should be list of strings.")
             sys.exit(1)
@@ -210,7 +218,19 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
 
         pathDictionary = chunkMetFilesPathsForBinning(metPathsAndTime, tracerPathsAndTime, tomlConfig['MetDataBinningTime'], tracerExpFreq, metExpFreq)
 
-        numOfFiles = len(tracerPathsAndTime)
+        if not pathDictionary:
+            print("ERROR: No tracer timestamps could be matched to any met files.\n\n"
+                  "Check that met and tracer file date ranges overlap and that "
+                  "MetDataBinningTime is wide enough to capture at least one met file per tracer timestamp.")
+            sys.exit(1)
+
+        unmatched = [ts for ts in tracerPathsAndTime.index if ts not in pathDictionary]
+        if unmatched:
+            print(f"WARNING: {len(unmatched)} tracer timestamp(s) could not be matched to any met files and will be skipped:")
+            for ts in unmatched:
+                print(f"  {ts}")
+
+        numOfFiles = len(pathDictionary)
         numbers = list(range(len(pathDictionary)))
 
 
@@ -249,7 +269,12 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
 
 
 def run_tracer_transport_theta() -> None:
+    """
+    Entry point for the ``tem-tracer-transport-theta`` CLI command.
 
+    Parses arguments, assembles the required-variable list for
+    theta-coordinate inputs, and delegates to :func:`run_tracer_transport`.
+    """
     from .parser import tTransport_theta_parser
     from .tracer_transport_theta import init_worker, mainCalcs
     parserArgs = tTransport_theta_parser().parse_args()
@@ -275,6 +300,12 @@ def run_tracer_transport_theta() -> None:
 
 
 def run_tracer_transport_press() -> None:
+    """
+    Entry point for the ``tem-tracer-transport-press`` CLI command.
+
+    Parses arguments, assembles the required-variable list for
+    log-pressure-coordinate inputs, and delegates to :func:`run_tracer_transport`.
+    """
     from .parser import tTransport_press_parser
     from .tracer_transport_press import init_worker, mainCalcs
     parserArgs = tTransport_press_parser().parse_args()

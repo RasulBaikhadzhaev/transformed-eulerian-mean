@@ -11,10 +11,13 @@ from metpy.units import units
 
 
 def addRatioUnits() -> None:
-    '''
-    Registers custom atmospheric units (mixing ratios) into the MetPy unit registry.
-    This allows for seamless unit conversion between ppmv, ppbv, and mass fractions.
-    '''
+    """
+    Register custom atmospheric mixing-ratio units into the MetPy unit registry.
+
+    Defines volumetric (ppmv, ppbv, pptv), mass (ppmm, ppbm, pptm), and
+    dimensionless fraction (frac/fraction) units if they are not already present.
+    Safe to call multiple times; skips definitions that already exist.
+    """
     try:
         units.ppmv
     except Exception as e:
@@ -41,7 +44,19 @@ def addRatioUnits() -> None:
 
 def load_and_merge_config(parserArgs: Any) -> dict:
     """
-    Loads a TOML configuration file and overrides values with command-line arguments.
+    Load a TOML configuration file and override values with command-line arguments.
+
+    Parameters
+    ----------
+    parserArgs : argparse.Namespace
+        Parsed CLI arguments. ``parserArgs.configFile`` must point to a valid
+        TOML file. Any other attribute whose value is not ``'from config file'``
+        overwrites the corresponding key in the loaded config dict.
+
+    Returns
+    -------
+    dict
+        Merged configuration mapping.
     """
     config = toml.load(open(parserArgs.configFile, 'r'))
     for arg, value in vars(parserArgs).items():
@@ -51,7 +66,20 @@ def load_and_merge_config(parserArgs: Any) -> dict:
 
 
 def format_seconds(seconds: float) -> str:
-    """Converts a raw second count into a human-readable 'Hh Mm Ss' format."""
+    """
+    Convert a raw second count into a human-readable string.
+
+    Parameters
+    ----------
+    seconds : float
+        Elapsed time in seconds. Negative values return ``'calculating...'``.
+
+    Returns
+    -------
+    str
+        String of the form ``'1h 4m 7s'``, omitting leading zero components
+        (e.g. ``'4m 7s'`` when hours are zero). Always includes seconds.
+    """
     if seconds < 0:
         return "calculating..."
     h = int(seconds // 3600)
@@ -70,7 +98,20 @@ def format_seconds(seconds: float) -> str:
 
 def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
     """
-    A CLI progress bar that runs in a separate thread to monitor processing.
+    Print a CLI progress bar to stdout, updating every second until done.
+
+    Intended to run in a daemon thread alongside a multiprocessing pool.
+    Reads ``counter.value`` (a ``multiprocessing.Value('i', ...)`` shared
+    integer) and terminates once it reaches *totalN*.
+
+    Parameters
+    ----------
+    counter : multiprocessing.Value
+        Shared integer incremented by worker processes after each file.
+    totalN : int
+        Total number of files to process.
+    timeStart : float
+        Start time from ``time.time()``, used to compute elapsed time.
     """
     while True:
         currentN = counter.value
@@ -91,14 +132,44 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
 
 
 def binData(dataset: Any, binningLat: int, binningLon: int) -> Any:
-    '''
-    Downsample the dataset by applying a spatial block average over latitude and longitude.
-    '''
+    """
+    Downsample a dataset by applying a block average over latitude and longitude.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        Input dataset with ``lat`` and ``lon`` dimensions.
+    binningLat : int
+        Number of latitude grid points to average into one.
+    binningLon : int
+        Number of longitude grid points to average into one.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset with reduced spatial resolution. Grid cells that do not fill a
+        complete bin are trimmed (``boundary='trim'``).
+    """
     return dataset.coarsen(lat=binningLat, boundary='trim').mean().coarsen(lon=binningLon, boundary='trim').mean()
 
 
 def nanGradient1D(y1d: np.ndarray, x1d: np.ndarray) -> np.ndarray:
-    """Helper function to calculate gradient on a 1D slice, ignoring NaNs."""
+    """
+    Compute the finite-difference gradient of a 1-D array, skipping NaN values.
+
+    Parameters
+    ----------
+    y1d : np.ndarray, shape (N,)
+        Data values; may contain NaNs.
+    x1d : np.ndarray, shape (N,)
+        Coordinate values corresponding to *y1d*.
+
+    Returns
+    -------
+    np.ndarray, shape (N,)
+        Gradient array. Positions where *y1d* was NaN remain NaN; positions
+        where fewer than two valid neighbours exist are also NaN.
+    """
     valid_mask = ~np.isnan(y1d)
     valid_y = y1d[valid_mask]
 
@@ -115,9 +186,26 @@ def nanGradient1D(y1d: np.ndarray, x1d: np.ndarray) -> np.ndarray:
 
 def nanGradient(y_data: Any, x_data: Any, axis: int = 0) -> Any:
     """
-    Calculates the finite difference derivative while handling NaN values.
-    Standard np.gradient fails if any NaNs are present; this function masks
-    them and calculates the gradient on the remaining valid data.
+    Compute a finite-difference derivative along one axis, handling NaN values.
+
+    ``np.gradient`` propagates NaNs; this function isolates valid points per
+    slice along *axis* and computes the gradient only on those, leaving NaN
+    positions as NaN in the output.
+
+    Parameters
+    ----------
+    y_data : array-like or pint Quantity, shape (...,)
+        Data to differentiate. May contain NaNs.
+    x_data : array-like or pint Quantity, 1-D
+        Coordinate values along *axis*.
+    axis : int, optional
+        Axis along which to differentiate (default 0).
+
+    Returns
+    -------
+    array-like or pint Quantity
+        Derivative with the same shape as *y_data*. If both *y_data* and
+        *x_data* carry units the result has units ``y_data.units / x_data.units``.
     """
     y_mag = y_data.magnitude if hasattr(y_data, 'units') else y_data
     x_mag = x_data.magnitude if hasattr(x_data, 'units') else x_data
@@ -138,6 +226,22 @@ def nanGradient(y_data: Any, x_data: Any, axis: int = 0) -> Any:
 
 
 def is_equal_or_shorter_than_month(freq: Any) -> bool:
+    """
+    Return True if *freq* represents a time interval of one month or shorter.
+
+    Accepts pandas offset aliases (e.g. ``'MS'``, ``'3H'``) and timedelta
+    strings (e.g. ``'7 days'``). Monthly aliases (``'MS'``, ``'M'``, etc.) are
+    treated as exactly one month. Unknown strings return False.
+
+    Parameters
+    ----------
+    freq : str or pandas offset
+        Frequency to test.
+
+    Returns
+    -------
+    bool
+    """
     f = str(freq).strip()
     f_upper = f.upper()
 
@@ -157,6 +261,22 @@ def is_equal_or_shorter_than_month(freq: Any) -> bool:
 
 
 def is_equal_or_shorter_than_day(freq: Any) -> bool:
+    """
+    Return True if *freq* represents a time interval of one day or shorter.
+
+    Monthly, weekly, quarterly, and annual aliases return False. Daily aliases
+    (``'D'``, ``'B'``) return True. For numeric timedelta strings the duration
+    is compared against 24 hours. Unknown strings return False.
+
+    Parameters
+    ----------
+    freq : str or pandas offset
+        Frequency to test.
+
+    Returns
+    -------
+    bool
+    """
     f = str(freq).strip()
     f_upper = f.upper()
 

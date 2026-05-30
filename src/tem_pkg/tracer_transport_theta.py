@@ -14,7 +14,33 @@ from .utils import addRatioUnits, binData, nanGradient
 
 
 def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[dict, np.ndarray, Any]:
+    """
+    Compute tracer transport diagnostics in isentropic (theta) coordinates.
 
+    Calculates the residual circulation tendencies, eddy flux vectors, and
+    their divergences for each tracer listed in ``tomlConfig['tracerNames']``.
+    Optionally computes a Fourier decomposition of the eddy flux terms.
+
+    Parameters
+    ----------
+    interpolatedDataset : xr.Dataset
+        Combined tracer and met dataset on a common theta grid with dimensions
+        (``'theta'``, ``'lat'``, ``'lon'``).
+    tomlConfig : dict
+        Configuration dict. Uses ``tracerNames``, ``sinksSources``,
+        ``meridionalWindName``, ``verticalWindName``, ``pressureName``,
+        ``FourierTransform``, ``Waves``, and ``saveEddyTerms`` keys.
+
+    Returns
+    -------
+    dataToSave : dict
+        Mapping ``{var_name: [data_array, long_name, units]}`` for all output
+        variables, including an optional ``'Fourier'`` sub-dict.
+    lats : np.ndarray
+        Latitude coordinate values in degrees.
+    thetaLevels : pint Quantity
+        Potential temperature levels (K).
+    """
     addRatioUnits()
     lats = np.array(interpolatedDataset.lat)
     lons = np.array(interpolatedDataset.lon)
@@ -85,10 +111,6 @@ def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[
             halfLifeUnits = units(tomlConfig['sinksSources'][index].split(', ')[2])
             sinkSource = -chiBar * np.log(2) / (halfLife * halfLifeUnits).to_base_units()
 
-        # eddyDiffusivity = (M_phi / sigmaDensityBar) / (DChiBarDPhi / rEarth)  # Results are very noisy need to filter values statistically non different from zero of mLat and DChiBarDPhi
-        # VARIABLES to save 
-        
-        # chi_bar = chiBar
         divm_theta = div_M_theta / sigmaDensityBar
         divm_lat = div_M_phi / sigmaDensityBar
         m_theta = M_theta / sigmaDensityBar
@@ -106,7 +128,6 @@ def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[
         dataToSave[f'{tracer}_m_lat'] = [m_lat, f'meridional eddy flux vector of {tracer} divided by basic density', str(m_lat.units)]
         dataToSave[f'{tracer}_adv_theta'] = [adv_theta, f'vertical residual circulation tendency of {tracer}', str(adv_theta.units)]
         dataToSave[f'{tracer}_adv_lat'] = [adv_lat, f'meridional residual circulation tendency of {tracer}', str(adv_lat.units)]
-        # dataToSave[f'{tracer}_eddy_diffusivity'] = [eddyDiffusivity, f'eddy diffusivity as in Curbelo 2025, calculated from {tracer}', str(eddyDiffusivity.units)]
 
         if tomlConfig['FourierTransform']:
             ChiPrimeFFT = np.fft.rfft(np.nan_to_num(chiPrime.magnitude), axis=2)
@@ -157,11 +178,9 @@ def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[
                     
                 
             else:
-                '''Saving entire Fourier transform result usually significantly increases size of the output file.
-                There is an option to save only some waves which are stored in args dictionary as args["Waves"]. 
-                args["Waves"] is expected to be a string "all" or a list of strings like "5" or "6-10" where in
-                case of "6-10" sum of waves from 6 to 10 will be saved as a single 2d field'''
-            
+                # Save only the wavenumber bands listed in tomlConfig['Waves'].
+                # Each entry is either a single wave (e.g. "5") or a range (e.g. "6-10"),
+                # where a range is summed into one 2-D field.
                 FShape = np.zeros((FourT[f'{tracer}_m_lat_WN'].shape[0], FourT[f'{tracer}_m_lat_WN'].shape[1], len(tomlConfig['Waves']))).shape
                 Fourier = {f'{tracer}_m_lat_WN': [np.zeros((FShape)), f'Fourier transform of meridional eddy flux vector of {tracer} divided by basic density', str(m_lat.units)], 
                             f'{tracer}_m_theta_WN': [np.zeros((FShape)), f'Fourier transform of vertical eddy flux vector of {tracer} divided by basic density', str(m_theta.units)],
@@ -192,18 +211,54 @@ def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[
 
 
 def init_worker(shared_counter: Any) -> None:
-    ''' store the counter for later use to calculate percent done'''
+    """
+    Initialise a pool worker by storing the shared progress counter.
+
+    Parameters
+    ----------
+    shared_counter : multiprocessing.Value
+        Shared integer incremented after each file is processed.
+    """
     global counter
     counter = shared_counter
 
 
 def mainCalcs(tomlConfig: dict, count: int, pathsAndTime: Any = '', reqVarsWithTracers: Any = '', pathDictionary: Any = '', reqVars: Any = '') -> None:
+    """
+    Process one tracer-transport time step in theta coordinates and save output.
+
+    Reads input file(s), interpolates to the theta grid, runs
+    :func:`tracerTransport`, and writes results to a NetCDF file via
+    :func:`~tem_pkg.file_io.saveOut`.
+
+    Called by the multiprocessing pool; increments the shared ``counter`` on
+    success. Re-raises exceptions with the offending file path prepended to
+    the message.
+
+    Parameters
+    ----------
+    tomlConfig : dict
+        Configuration dict.
+    count : int
+        Index into *pathsAndTime* or *pathDictionary* for this worker.
+    pathsAndTime : pd.DataFrame or ``''``
+        Combined met+tracer file paths; used when ``tracerDataInMetFiles`` is
+        True.
+    reqVarsWithTracers : list of str or ``''``
+        Variable names including tracers; used with *pathsAndTime*.
+    pathDictionary : dict or ``''``
+        Mapping of tracer timestamps to ``[tracer_path, met_paths, weights]``;
+        used when met and tracer files are separate.
+    reqVars : list of str or ``''``
+        Met-only variable names; used with *pathDictionary*.
+    """
     try:
         if tomlConfig['tracerDataInMetFiles']: # if met and tracer data are in the same files.
             timeStamp = list(pathsAndTime.index)[count]
             
-            dataset = readAndTransposeData(pathsAndTime['Path'].iloc[count], reqVarsWithTracers, tomlConfig['vertDim'], 
-                                        tomlConfig['latDim'], tomlConfig['lonDim'])
+            dataset = readAndTransposeData(pathsAndTime['Path'].iloc[count], reqVarsWithTracers, tomlConfig['vertDim'],
+                                        tomlConfig['latDim'], tomlConfig['lonDim'],
+                                        timeDimName=tomlConfig.get('timeDim', ''))
             interpolatedDataset = interpolateToTheta(dataset, reqVarsWithTracers, tomlConfig)
             
         else:
@@ -214,7 +269,8 @@ def mainCalcs(tomlConfig: dict, count: int, pathsAndTime: Any = '', reqVarsWithT
             metFilesWeights = pathDictionary[list(pathDictionary.keys())[count]][2]
 
             tracerDataset = readAndTransposeData(tracerFilePath, tomlConfig['tracerNames'],
-                                                tomlConfig['tracerVertDim'], tomlConfig['tracerLatDim'], tomlConfig['tracerLonDim'])
+                                                tomlConfig['tracerVertDim'], tomlConfig['tracerLatDim'], tomlConfig['tracerLonDim'],
+                                                timeDimName=tomlConfig.get('tracerTimeDim', ''))
             
             metDataset = readDataAndGetWeightedAverage(metFilePaths, metFilesWeights, reqVars,
                                                     tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'])
@@ -227,12 +283,14 @@ def mainCalcs(tomlConfig: dict, count: int, pathsAndTime: Any = '', reqVarsWithT
         dataToSave, lats, thetaLevels = tracerTransport(interpolatedDataset, tomlConfig)
         saveOut(dataToSave, tomlConfig, timeStamp, lats, thetaLevels)
         
-        ''' increment the global counter and display percent done '''
         global counter
         # += operation is not atomic, so get a lock:
         with counter.get_lock():
             counter.value += 1
 
     except Exception as e:
-            # Raise am exception that includes the path context
-            raise type(e)(f"[pathsAndTime: {pathsAndTime['Path'].iloc[count]}] {str(e)}").with_traceback(e.__traceback__)
+        try:
+            path_ctx = pathsAndTime['Path'].iloc[count] if hasattr(pathsAndTime, 'iloc') else list(pathDictionary.keys())[count]
+        except Exception:
+            path_ctx = '?'
+        raise type(e)(f"[path: {path_ctx}] {str(e)}").with_traceback(e.__traceback__)

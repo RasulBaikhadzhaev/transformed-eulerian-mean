@@ -74,15 +74,44 @@ def _build_interpolated_dataset(dataset: xr.Dataset, variables: list[str], targe
                                  interp_target: Any, source_coord: Any, lat_dim: str, lon_dim: str,
                                  interp_fn: Callable, copy_attrs: bool = True, cast_single: bool = True) -> xr.Dataset:
     """
-    Interpolate *variables* from *dataset* and return an xr.Dataset at *out_coord_values*.
+    Interpolate variables from a dataset onto new vertical coordinate values.
 
-    target_coord    : str   — output coordinate name ('alt' or 'theta')
-    out_coord_values: array — values stored in the output coordinate (e.g. km levels)
-    interp_target   : array — target passed to interp_fn (may differ from out_coord_values, e.g. log-pressure)
-    source_coord    : array — source coordinate passed to interp_fn
-    interp_fn       : callable — retained for API compatibility (unused when source_coord is 3-D)
-    copy_attrs      : if True copy full attrs dict; if False copy only units
-    cast_single     : if True store data as float32 (np.single); keep original dtype otherwise
+    When *source_coord* is 3-D the fast vectorised :func:`_interp1d_3d` path
+    is used; when it is 1-D the function falls back to MetPy ``interpolate_1d``.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        Source dataset containing *variables*.
+    variables : list of str
+        Variable names to interpolate.
+    target_coord : str
+        Output coordinate name (``'alt'`` or ``'theta'``).
+    out_coord_values : array-like or pint Quantity
+        Values stored in the output coordinate (e.g. km levels).
+    interp_target : array-like or pint Quantity
+        Target values passed to the interpolation function. May differ from
+        *out_coord_values* (e.g. log-pressure targets when output is in km).
+    source_coord : array-like or pint Quantity
+        Source coordinate array. Shape ``(S, H, W)`` triggers the 3-D fast
+        path; shape ``(S,)`` triggers the MetPy fallback.
+    lat_dim : str
+        Name of the latitude dimension in *dataset*.
+    lon_dim : str
+        Name of the longitude dimension in *dataset*.
+    interp_fn : Callable
+        Interpolation function kept for API compatibility; only used in the
+        1-D fallback path.
+    copy_attrs : bool
+        If True copy the full ``attrs`` dict; if False copy only ``'units'``.
+    cast_single : bool
+        If True store output as float32; keep original dtype otherwise.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset on the new vertical grid with coordinates
+        (*target_coord*, ``'lat'``, ``'lon'``).
     """
     raw_data = [np.single(np.array(dataset[v])) for v in variables]
     src = source_coord.magnitude if hasattr(source_coord, 'magnitude') else source_coord
@@ -111,25 +140,89 @@ def _build_interpolated_dataset(dataset: xr.Dataset, variables: list[str], targe
 
 
 def alt2press(x: Any) -> Any:
-    """Converts log-pressure altitude to pressure using the scale height H."""
+    """
+    Convert log-pressure altitude to pressure.
+
+    Uses ``P = P0 * exp(-z / H)`` with ``H = 7 km``, ``P0 = 1000 hPa``.
+
+    Parameters
+    ----------
+    x : pint Quantity or array-like
+        Log-pressure altitude in km.
+
+    Returns
+    -------
+    pint Quantity
+        Pressure in the same unit system as P0 (hPa).
+    """
     return P0 * np.exp(-x / H)
 
 
 def press2alt(x: Any) -> Any:
-    """Converts pressure to log-pressure altitude using the scale height H."""
+    """
+    Convert pressure to log-pressure altitude.
+
+    Uses ``z = -H * ln(p / P0)`` with ``H = 7 km``, ``P0 = 1000 hPa``.
+
+    Parameters
+    ----------
+    x : pint Quantity or array-like
+        Pressure in hPa.
+
+    Returns
+    -------
+    pint Quantity
+        Log-pressure altitude in km.
+    """
     return -H * np.log(x / P0)
 
 
 def interpolateToLogPressure(dataset: xr.Dataset, reqVars: list[str], vertDimType: str, targetLevels: Any, vertDimName: str, latDimName: str,
                                 lonDimName: str, pressureVarName: str = '', saveInterpolatedZonalMeanVars: list[str] = [], saveZonalMeanVars: list[str] = []) -> xr.Dataset:
-    '''
-    Interpolates a dataset to log-pressure altitude coordinates.
+    """
+    Interpolate a dataset to log-pressure altitude coordinates.
 
-    If vertDimType is 'pressure', the pressure dimension is converted to
-    log-pressure altitude and interpolated to targetLevels.  If 'other', a
-    3-D pressure variable is used for the interpolation.  If 'log-pressure',
-    the dimensions are renamed and the data is optionally re-gridded.
-    '''
+    Three input coordinate types are supported:
+
+    - ``'pressure'`` — the vertical dimension contains pressure values (hPa);
+      converted to log-pressure altitude and interpolated to *targetLevels*.
+    - ``'other'`` — a 3-D pressure variable (*pressureVarName*) provides the
+      source coordinate for interpolation to *targetLevels*.
+    - ``'log-pressure'`` — already in log-pressure altitude; dimensions are
+      renamed and optionally re-gridded to *targetLevels*.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        Input dataset.
+    reqVars : list of str
+        Variables to include in the output.
+    vertDimType : str
+        Input vertical coordinate type: ``'pressure'``, ``'other'``, or
+        ``'log-pressure'``.
+    targetLevels : array-like or ``'skip'``
+        Target log-pressure altitude levels in km. Pass ``'skip'`` to keep
+        the original grid.
+    vertDimName : str
+        Name of the vertical dimension in *dataset*.
+    latDimName : str
+        Name of the latitude dimension in *dataset*.
+    lonDimName : str
+        Name of the longitude dimension in *dataset*.
+    pressureVarName : str
+        Name of the 3-D pressure variable; required when *vertDimType* is
+        ``'other'``.
+    saveInterpolatedZonalMeanVars : list of str
+        Extra variables to interpolate and then zonal-average.
+    saveZonalMeanVars : list of str
+        Extra variables to zonal-average without interpolation.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset on a log-pressure altitude grid with dimensions
+        (``'alt'``, ``'lat'``, ``'lon'``).
+    """
     if vertDimType == 'pressure':
         datasetLogPress = dataset.rename({vertDimName: 'alt'}).assign_coords({'alt':
             press2alt(np.array(dataset[vertDimName]) * units('hPa'))})
@@ -173,7 +266,30 @@ def interpolateToLogPressure(dataset: xr.Dataset, reqVars: list[str], vertDimTyp
 
 def interpolateToTheta(dataset: xr.Dataset, reqVarsWithTracers: list[str], tomlConfig: dict) -> xr.Dataset:
     """
-    Interpolates an existing dataset to theta (potential temperature) levels.
+    Interpolate a dataset to potential temperature (theta) levels.
+
+    Two input coordinate types are supported:
+
+    - ``'other'`` — a 3-D theta variable provides the source coordinate;
+      variables are interpolated to ``tomlConfig['targetLevels']``.
+    - ``'theta'`` — already on theta levels; dimensions are renamed and
+      optionally re-gridded to ``tomlConfig['targetLevels']``.
+
+    Parameters
+    ----------
+    dataset : xr.Dataset
+        Input dataset on the original vertical grid.
+    reqVarsWithTracers : list of str
+        Variables (met + tracers) to include in the output.
+    tomlConfig : dict
+        Configuration dict; uses ``verticalDimensionType``, ``thetaName``,
+        ``targetLevels``, ``vertDim``, ``latDim``, and ``lonDim`` keys.
+
+    Returns
+    -------
+    xr.Dataset
+        Dataset on a theta grid with dimensions
+        (``'theta'``, ``'lat'``, ``'lon'``).
     """
     if tomlConfig['verticalDimensionType'] == 'other':
         thetaTargetLevels = tomlConfig['targetLevels'] * units.K
@@ -202,8 +318,30 @@ def interpolateToTheta(dataset: xr.Dataset, reqVarsWithTracers: list[str], tomlC
 
 def interpolateToThetaAndCombineData(tracerDataset: xr.Dataset, metDataset: xr.Dataset, reqVars: list[str], tomlConfig: dict) -> xr.Dataset:
     """
-    Interpolates (if necessary) both tracer and met datasets to a common
-    potential temperature (theta) vertical grid and merges them.
+    Interpolate tracer and met datasets to a common theta grid and merge them.
+
+    Handles all combinations of ``tracerVerticalDimensionType`` (``'other'``
+    or ``'theta'``) and ``verticalDimensionType`` (``'other'`` or ``'theta'``).
+    After interpolation the met dataset is re-gridded to the tracer theta
+    levels with ``interp_like`` before merging.
+
+    Parameters
+    ----------
+    tracerDataset : xr.Dataset
+        Tracer dataset on its original vertical grid.
+    metDataset : xr.Dataset
+        Meteorological dataset on its original vertical grid.
+    reqVars : list of str
+        Met variables to include in the output.
+    tomlConfig : dict
+        Configuration dict with vertical coordinate settings for both tracer
+        and met data.
+
+    Returns
+    -------
+    xr.Dataset
+        Merged float32 dataset on a common theta grid with dimensions
+        (``'theta'``, ``'lat'``, ``'lon'``).
     """
     if tomlConfig['tracerVerticalDimensionType'] == 'other':
         _tracer_levels = (metDataset[tomlConfig['vertDim']].values if isinstance(tomlConfig.get('targetLevels', 'skip'), str)
@@ -259,8 +397,31 @@ def interpolateToThetaAndCombineData(tracerDataset: xr.Dataset, metDataset: xr.D
 
 def interpolateToPressureAndCombineData(tracerDataset: xr.Dataset, metDataset: xr.Dataset, reqVars: list[str], tomlConfig: dict) -> xr.Dataset:
     """
-    Interpolates both tracer and met datasets to a common log-pressure altitude
-    grid and merges them.
+    Interpolate tracer and met datasets to a common log-pressure grid and merge.
+
+    Handles all combinations of ``tracerVerticalDimensionType`` (``'pressure'``,
+    ``'other'``, or ``'log-pressure'``) and ``verticalDimensionType``
+    (``'pressure'``, ``'other'``, or ``'log-pressure'``). After interpolation
+    the met dataset is re-gridded to the tracer altitude levels with
+    ``interp_like`` before merging.
+
+    Parameters
+    ----------
+    tracerDataset : xr.Dataset
+        Tracer dataset on its original vertical grid.
+    metDataset : xr.Dataset
+        Meteorological dataset on its original vertical grid.
+    reqVars : list of str
+        Met variables to include in the output.
+    tomlConfig : dict
+        Configuration dict with vertical coordinate settings for both tracer
+        and met data, and ``targetLevels`` (km) for the output grid.
+
+    Returns
+    -------
+    xr.Dataset
+        Merged float32 dataset on a common log-pressure altitude grid with
+        dimensions (``'alt'``, ``'lat'``, ``'lon'``).
     """
     if tomlConfig['tracerVerticalDimensionType'] == 'pressure':
         tracerDatasetLogPress = tracerDataset.rename({tomlConfig['tracerVertDim']: 'alt'}).assign_coords({'alt':

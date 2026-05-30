@@ -6,7 +6,19 @@ _CFG = 'from config file'
 
 
 def _add_common_args(parser: argparse.ArgumentParser) -> None:
-    """Add arguments present in all three tools."""
+    """
+    Register CLI arguments shared by all three entry-point tools.
+
+    Adds arguments for output directory, input file discovery, time filtering,
+    vertical coordinate configuration, variable names, Fourier options, and
+    parallelism. All arguments default to ``'from config file'`` so that the
+    TOML config is the primary source and CLI flags are optional overrides.
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+        Parser to which arguments are added in-place.
+    """
     parser.add_argument("--outputDirectory",
                         default=_CFG,
                         help="directory where results are stored.")
@@ -117,7 +129,17 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_tracer_args(parser: argparse.ArgumentParser) -> None:
-    """Add arguments shared by both tracer transport tools."""
+    """
+    Register CLI arguments shared by both tracer-transport entry-point tools.
+
+    Adds arguments for tracer variable names, sink/source terms, met-data
+    temporal binning, and separate tracer file paths and dimension names.
+
+    Parameters
+    ----------
+    parser : argparse.ArgumentParser
+        Parser to which arguments are added in-place.
+    """
     parser.add_argument("--tracerDataInMetFiles",
                         default=_CFG,
                         help="set to true if tracer and meteorological data are in the same files, "
@@ -192,6 +214,16 @@ def _add_tracer_args(parser: argparse.ArgumentParser) -> None:
 
 
 def residual_circ_parser() -> argparse.ArgumentParser:
+    """
+    Build the argument parser for the residual-circulation tool.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser for ``tem-residual-circ``, covering common arguments plus
+        options specific to the residual-circulation calculation (input path
+        type, eddy-term saving, temporal averaging).
+    """
     parser = argparse.ArgumentParser(
         description="Compute residual mean meridional circulation and Eliassen-Palm flux diagnostics.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -241,6 +273,15 @@ def residual_circ_parser() -> argparse.ArgumentParser:
 
 
 def tTransport_theta_parser() -> argparse.ArgumentParser:
+    """
+    Build the argument parser for the theta-coordinate tracer-transport tool.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser for ``tem-tracer-transport-theta``, covering common arguments
+        and tracer-specific arguments.
+    """
     parser = argparse.ArgumentParser(
         description="Compute tracer transport diagnostics in potential temperature (theta) coordinates.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -255,6 +296,15 @@ def tTransport_theta_parser() -> argparse.ArgumentParser:
 
 
 def tTransport_press_parser() -> argparse.ArgumentParser:
+    """
+    Build the argument parser for the log-pressure tracer-transport tool.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser for ``tem-tracer-transport-press``, covering common arguments
+        and tracer-specific arguments.
+    """
     parser = argparse.ArgumentParser(
         description="Compute tracer transport diagnostics in log-pressure altitude coordinates.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
