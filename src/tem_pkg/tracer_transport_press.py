@@ -10,7 +10,7 @@ from scipy.integrate import cumulative_trapezoid
 from .constants import P0, Cp, R, Ts, gEarth, rEarth
 from .file_io import readAndTransposeData, readDataAndGetWeightedAverage, saveOut
 from .interpolation import alt2press, interpolateToLogPressure, interpolateToPressureAndCombineData
-from .utils import addRatioUnits, binData, nanGradient
+from .utils import addRatioUnits, apply_waves_banding, binData, nanGradient
 
 
 def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[dict, np.ndarray, Any]:
@@ -121,7 +121,7 @@ def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[
         divMz = nanGradient(Mz, altitudes.to('m'), axis=0)
 
         sinkSource = 0 * chi.units / units('s')
-        if str.isdigit(tomlConfig['sinksSources'][index]): # if sinkSource is integer
+        if tomlConfig['sinksSources'][index].isdigit():
             sinkSource = int(tomlConfig['sinksSources'][index]) * chi.units / units('s')
         elif 'half life' in tomlConfig['sinksSources'][index]:
             halfLife = float(tomlConfig['sinksSources'][index].split(', ')[1])
@@ -165,78 +165,70 @@ def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[
             n_valid_vt = np.sum(np.isfinite(vPrime.magnitude * thetaPrime.magnitude), axis=2, keepdims=True)
             n_valid_wc = np.sum(np.isfinite(wPrime.magnitude * chiPrime.magnitude), axis=2, keepdims=True)
 
-            FourTNDBD = {}
+            # Compute ρ-weighted cross-spectra as plain numpy arrays (no units yet).
+            # Dividing by ρ₀ is the step that gives the correct physical units;
+            # attaching units beforehand would require tracking ρv′χ′ units through
+            # gradient operations and is error-prone.
+            rho3 = densBasic3D.magnitude
+            dcdz = DChiBarDZ[:, :, np.newaxis].magnitude
+            dtdz = DThetaBarDZ[:, :, np.newaxis].magnitude
+            dcdf = DChiBarDFI[:, :, np.newaxis].magnitude
+            altitudes_m = altitudes.to('m').magnitude
             with np.errstate(invalid='ignore'):
-                FourTNDBD[f'{tracer}_m_lat_WN'] = (-densBasic3D.magnitude * (
+                m_lat_spec = -rho3 * (
                     np.real(vPrimeFFT * np.conj(ChiPrimeFFT)) / (n_valid_vc * _N / 2)
-                    - DChiBarDZ[:, :, np.newaxis].magnitude / DThetaBarDZ[:, :, np.newaxis].magnitude *
-                      np.real(vPrimeFFT * np.conj(ThetaPrimeFFT)) / (n_valid_vt * _N / 2)
-                )) * units(str(MFi.units))
-
-                FourTNDBD[f'{tracer}_m_z_WN'] = (-densBasic3D.magnitude * (
+                    - dcdz / dtdz * np.real(vPrimeFFT * np.conj(ThetaPrimeFFT)) / (n_valid_vt * _N / 2)
+                )
+                m_z_spec = -rho3 * (
                     np.real(wPrimeFFT * np.conj(ChiPrimeFFT)) / (n_valid_wc * _N / 2)
-                    + DChiBarDFI[:, :, np.newaxis].magnitude / DThetaBarDZ[:, :, np.newaxis].magnitude *
-                      np.real(vPrimeFFT * np.conj(ThetaPrimeFFT)) / (n_valid_vt * _N / 2)
-                )) * units(str(Mz.units))
-            
-            FourTNDBD[f'{tracer}_divm_lat_WN'] = (1 / (rEarth * cosFi[:, :, np.newaxis]) * nanGradient(FourTNDBD[f'{tracer}_m_lat_WN'] * cosFi[:, :, np.newaxis], latsR, axis=1))
-            
-            FourTNDBD[f'{tracer}_divm_z_WN'] = nanGradient(FourTNDBD[f'{tracer}_m_z_WN'], altitudes.to('m'), axis=0)
-            
-            FourTNDBD[f'{tracer}_divm_WN'] = FourTNDBD[f'{tracer}_divm_z_WN'] + FourTNDBD[f'{tracer}_divm_lat_WN']            
-            
-            # it probably would be better to remove densBasic3D from FourTNDBD['MFi_WN'] and ['MZ_WN'] and get results divided by basic density
-            # but to follow equation in the book, scaling by basc density is done here
-            FourT = {}
-            for variable in FourTNDBD.keys():
-                FourT[variable] = FourTNDBD[variable] / densBasic3D
+                    + dcdf / dtdz * np.real(vPrimeFFT * np.conj(ThetaPrimeFFT)) / (n_valid_vt * _N / 2)
+                )
+            divm_lat_spec = (1 / (rEarth.magnitude * cosFi[:, :, np.newaxis]) *
+                             nanGradient(m_lat_spec * cosFi[:, :, np.newaxis], latsR, axis=1))
+            divm_z_spec = nanGradient(m_z_spec, altitudes_m, axis=0)
+            divm_spec = divm_lat_spec + divm_z_spec
+
+            FourT = {
+                f'{tracer}_m_lat_WN': (m_lat_spec / rho3) * m_lat.units,
+                f'{tracer}_m_z_WN': (m_z_spec / rho3) * m_z.units,
+                f'{tracer}_divm_lat_WN': (divm_lat_spec / rho3) * divm_lat.units,
+                f'{tracer}_divm_z_WN': (divm_z_spec / rho3) * divm_z.units,
+                f'{tracer}_divm_WN': (divm_spec / rho3) * divm_lat.units,
+            }
 
             # The Nyquist component (k=N//2) appears only once in the DFT (not twice like k=1..N//2-1),
             # so it was over-normalised by a factor of 2; correct that here.
-            _nyq = lons.size // 2
+            _nyq = _N // 2
             for variable in FourT:
                 FourT[variable][:, :, _nyq] = FourT[variable][:, :, _nyq] / 2
 
-            if len(tomlConfig['Waves']) == 1 and tomlConfig['Waves'][0].lower() == 'all':
-                FShape = np.zeros((FourT[f'{tracer}_m_lat_WN'].shape[0], FourT[f'{tracer}_m_lat_WN'].shape[1], FourT[f'{tracer}_m_lat_WN'].shape[2] - 1)).shape
-                Fourier = {f'{tracer}_m_lat_WN': [np.zeros((FShape)), 'Fourier transform of meridional eddy flux vector divided by basic density', str(m_lat.units)], 
-                           f'{tracer}_m_z_WN': [np.zeros((FShape)), 'Fourier transform of vertical eddy flux vector divided by basic density', str(m_z.units)],
-                           f'{tracer}_divm_lat_WN': [np.zeros((FShape)), 'Fourier transform of divergence of meridional eddy flux vector divided by basic density', str(divm_lat.units)], 
-                           f'{tracer}_divm_z_WN': [np.zeros((FShape)), 'Fourier transform of divergence of vertical eddy flux vector divided by basic density', str(divm_z.units)],
-                           f'{tracer}_divm_WN': [np.zeros((FShape)), 'Fourier transform of divergence of eddy flux vector divided by basic density', str(divm_lat.units)]}
+            waves_cfg = tomlConfig['Waves']
+            if len(waves_cfg) == 1 and waves_cfg[0].lower() == 'all':
+                waves_cfg = [str(k) for k in range(1, _N // 2 + 1)]
 
-                for variable in Fourier.keys():
-                    Fourier[variable][0][:, :, :] = FourT[variable][:, :, 1:]
-                    
-                
-            else:
-                # Save only the wavenumber bands listed in tomlConfig['Waves'].
-                # Each entry is either a single wave (e.g. "5") or a range (e.g. "6-10"),
-                # where a range is summed into one 2-D field.
-                FShape = np.zeros((FourT[f'{tracer}_m_lat_WN'].shape[0], FourT[f'{tracer}_m_lat_WN'].shape[1], len(tomlConfig['Waves']))).shape
-                Fourier = {f'{tracer}_m_lat_WN': [np.zeros((FShape)), 'Fourier transform of meridional eddy flux vector divided by basic density', str(m_lat.units)], 
-                           f'{tracer}_m_z_WN': [np.zeros((FShape)), 'Fourier transform of vertical eddy flux vector divided by basic density', str(m_z.units)],
-                           f'{tracer}_divm_lat_WN': [np.zeros((FShape)), 'Fourier transform of divergence of meridional eddy flux vector divided by basic density', str(divm_lat.units)], 
-                           f'{tracer}_divm_z_WN': [np.zeros((FShape)), 'Fourier transform of divergence of vertical eddy flux vector divided by basic density', str(divm_z.units)],
-                           f'{tracer}_divm_WN': [np.zeros((FShape)), 'Fourier transform of divergence of eddy flux vector divided by basic density', str(divm_lat.units)]}
-
-                for variable in Fourier.keys():
-                    for i, wave in enumerate(tomlConfig['Waves']):
-                        if '-' not in wave:  # if it is a single wave
-                            wave = int(wave)
-                            Fourier[variable][0][:, :, i] = FourT[variable][:, :, wave]
-                        elif 'end' not in wave and '-' in wave:  # if it is a range but not to the last wave
-                            waveStart = int(wave.split('-')[0])
-                            waveEnd = int(wave.split('-')[1])
-                            Fourier[variable][0][:, :, i] = np.nansum(FourT[variable][:, :, waveStart:waveEnd + 1], 2)
-                        else:  # if it is a range to the last wave
-                            waveStart = int(wave.split('-')[0])
-                            Fourier[variable][0][:, :, i] = np.nansum(FourT[variable][:, :, waveStart:], 2)
+            long_names = {
+                f'{tracer}_m_lat_WN': 'Fourier transform of meridional eddy flux vector divided by basic density',
+                f'{tracer}_m_z_WN': 'Fourier transform of vertical eddy flux vector divided by basic density',
+                f'{tracer}_divm_lat_WN': 'Fourier transform of divergence of meridional eddy flux vector divided by basic density',
+                f'{tracer}_divm_z_WN': 'Fourier transform of divergence of vertical eddy flux vector divided by basic density',
+                f'{tracer}_divm_WN': 'Fourier transform of divergence of eddy flux vector divided by basic density',
+            }
+            unit_strs = {
+                f'{tracer}_m_lat_WN': str(m_lat.units),
+                f'{tracer}_m_z_WN': str(m_z.units),
+                f'{tracer}_divm_lat_WN': str(divm_lat.units),
+                f'{tracer}_divm_z_WN': str(divm_z.units),
+                f'{tracer}_divm_WN': str(divm_lat.units),
+            }
+            # Strip k=0 from FourT before banding (k=0 is the zonal mean, not an eddy)
+            FourT_stripped = {var: arr[:, :, 1:] for var, arr in FourT.items()}
+            Fourier = {}
+            for variable, arr in FourT_stripped.items():
+                banded = apply_waves_banding(arr.magnitude, waves_cfg)
+                Fourier[variable] = [banded, long_names[variable], unit_strs[variable]]
             
             FourierToSave.update(Fourier)
-    
-    
-    dataToSave['Fourier'] = FourierToSave
+            dataToSave['Fourier'] = FourierToSave
 
     return dataToSave, lats, altitudes
 

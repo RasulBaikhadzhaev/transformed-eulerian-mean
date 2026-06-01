@@ -1,0 +1,155 @@
+# Configuration file for the isentropic stationary/transient wave decomposition calculator.
+# The program reads ALL files in the configured time period at once and produces a single
+# output file containing time-mean stationary and transient contributions to tracer
+# eddy transport tendencies in theta (isentropic) coordinates.
+
+####################################################################################################
+# IO settings (meteorological files; used for all files when tracerDataInMetFiles = true,
+# and for met-only files when tracerDataInMetFiles = false)
+####################################################################################################
+
+# Set to true if tracer data and meteorological data are in the same files.
+# Set to false if they are in separate files.
+tracerDataInMetFiles = false
+
+# Directory where results are stored.
+outputDirectory = 'tests/data/sample_output/waveDecomp_theta'
+
+# Directory where input (meteorological) data is located.
+inputDirectory = 'tests/data/sample_input/ERA5'
+
+# Names of input files. Uses recursive rglob, so glob patterns are supported.
+inFileNames = 'era5*.nc'
+
+# Position of time information in file names.
+# Accepts 'YYYY' (or 'YY' if century is absent) for year, 'MM' for month, 'DD' for day,
+# 'HH' for hour, 'mm' for minute, 'ss' for second.
+# At least year must be given; include all other available time fields.
+# Only one '*' is allowed; it must be the first or last character.
+# All non-time characters must be represented by '?'.
+# Examples: '*YYMMDDHH???' for era5_10120100.nc
+timeInfoInFileNames = '*YYMMDDHH???'
+
+# Prefix for output file names. The string '{tracerNames}' is replaced with the tracer names.
+# The period covered is appended automatically: {outPrefix}YYYY_MM_DD_to_YYYY_MM_DD.nc
+outPrefix = '{tracerNames}_WaveDecomp_Theta_'
+
+
+####################################################################################################
+# Calculation settings
+####################################################################################################
+
+# Potential temperature levels in K to which the input data will be interpolated.
+# Expects a homogeneous array (all floats or all integers).
+# If verticalDimensionType = 'theta', interpolation can be skipped with targetLevels = 'skip'.
+# If verticalDimensionType = 'other', a numeric array is required.
+targetLevels = 'skip'
+# targetLevels = [280,  290,  300,  310,  320,  330,  340,  350,  360,  370,
+#                 380,  390,  400,  410,  420,  430,  450,  475,  500,  550,
+#                 600,  650,  700,  800,  900, 1000, 1250, 1500, 2000, 2250,
+#                 2600]
+
+# Binning along the latitude axis: combines this many adjacent latitude points into one.
+# Set to 1 to keep the original resolution.
+binningLat = 2
+
+# Binning along the longitude axis. Set to 1 to keep the original resolution.
+binningLon = 1
+
+# Number of CPU cores used in the calculation.
+# Accepts 'all cores' (uses multiprocessing.cpu_count()) or a positive integer.
+processNumber = 'all cores'
+
+# Exclude files before this date. Accepts 'YYYY-MM-DD-HH' format, or '' to disable.
+startDate = ''
+
+# Exclude files after this date. Same format as startDate. The specified date is included.
+endDate = ''
+
+# Not used by this calculator (output is always a single file per run).
+outDirSkip = false
+
+
+####################################################################################################
+# Variables and dimensions of the input (meteorological) files
+####################################################################################################
+
+# Vertical coordinate type of the input files.
+# Accepts 'theta' or 'other'.
+# Calculations are performed in potential temperature (theta) coordinates.
+# If 'other' is selected, a 3-D theta variable is required for interpolation.
+verticalDimensionType = 'other'
+
+# Vertical wind variable type. Currently only 'thetaDot' is supported (dθ/dt in K/s).
+verticalWindType = 'thetaDot'
+
+# Name of the potential temperature variable in the input file.
+# Not required if verticalDimensionType = 'theta'.
+thetaName = 'THETA'
+
+# Name of the 3-D pressure variable in the input file.
+pressureName = 'PRESS'
+
+# Name of the meridional wind variable in the input file.
+meridionalWindName = 'V'
+
+# Name of the vertical wind variable (diabatic heating rate dθ/dt, K/s) in the input file.
+verticalWindName = 'THETA_DOT_TOT'
+
+# Names of the tracers as they appear in the input data files.
+# For multiple tracers use a list: tracerNames = ['BA', 'O3']
+tracerNames = ['BA']
+
+# Sinks and sources for each tracer.
+# Not used in the wave decomposition, but must be present for config compatibility.
+sinksSources = ['1']
+
+# Name of the latitude dimension in the input file.
+latDim = 'lat'
+
+# Name of the longitude dimension in the input file.
+lonDim = 'lon'
+
+# Name of the vertical dimension in the input file.
+vertDim = 'hybrid'
+
+# Name of the time dimension in the input file. Set to '' if files have no time dimension.
+timeDim = 'time'
+
+
+####################################################################################################
+# Settings for tracer data — only used when tracerDataInMetFiles = false
+####################################################################################################
+
+# Directory where tracer input data is located.
+tracerInputDirectory = 'tests/data/sample_input/CLaMS_Theta'
+
+# Names of tracer input files (same rglob rules as inFileNames).
+tracerInFileNames = 'clams_theta*.nc'
+
+# Position of time information in tracer file names (same format as timeInfoInFileNames).
+tracerTimeInfoInFileNames = '*YYMMDDHH???'
+
+# Temporal binning of meteorological data to match the (lower) frequency of tracer data.
+# Accepts 'auto' or a positive integer.
+MetDataBinningTime = 'auto'
+
+# Vertical coordinate type of the tracer input files.
+# Accepts 'theta' or 'other'.
+tracerVerticalDimensionType = 'theta'
+
+# Name of the potential temperature variable in the tracer input file.
+# Not required if tracerVerticalDimensionType = 'theta'.
+tracerThetaName = 'theta'
+
+# Name of the latitude dimension in the tracer input file.
+tracerLatDim = 'lat'
+
+# Name of the longitude dimension in the tracer input file.
+tracerLonDim = 'lon'
+
+# Name of the vertical dimension in the tracer input file.
+tracerVertDim = 'theta'
+
+# Name of the time dimension in the tracer input file.
+tracerTimeDim = 'time'

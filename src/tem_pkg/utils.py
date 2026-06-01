@@ -294,5 +294,38 @@ def is_equal_or_shorter_than_day(freq: Any) -> bool:
             duration = pd.to_timedelta('1' + f)
         except ValueError:
             return False
-
     return duration <= pd.Timedelta(days=1)
+
+
+def apply_waves_banding(spec: np.ndarray, waves_config: list) -> np.ndarray:
+    """
+    Reduce a full per-wavenumber array to the bands listed in *waves_config*.
+
+    A single string ``'k'`` selects wavenumber k; ``'k1-k2'`` sums k1 through
+    k2 inclusive; ``'k-end'`` sums from k to the last available wavenumber.
+    Wavenumber 0 (zonal mean) must already be excluded from *spec* (i.e. the
+    first axis position corresponds to k=1).
+
+    Parameters
+    ----------
+    spec : ndarray, shape (..., N_wn)
+        Full per-wavenumber array (last axis = wavenumbers 1 … N_wn).
+    waves_config : list of str
+        Band descriptors, e.g. ``['1', '2', '6-10', '21-end']``.
+
+    Returns
+    -------
+    banded : ndarray, shape (..., len(waves_config))
+    """
+    n_bands = len(waves_config)
+    out_shape = spec.shape[:-1] + (n_bands,)
+    banded = np.zeros(out_shape, dtype=spec.dtype)
+    for i, wave in enumerate(waves_config):
+        if '-' not in wave:
+            banded[..., i] = spec[..., int(wave) - 1]
+        elif 'end' not in wave:
+            k1, k2 = int(wave.split('-')[0]), int(wave.split('-')[1])
+            banded[..., i] = np.nansum(spec[..., k1 - 1: k2], axis=-1)
+        else:
+            banded[..., i] = np.nansum(spec[..., int(wave.split('-')[0]) - 1:], axis=-1)
+    return banded

@@ -315,15 +315,198 @@ def run_tracer_transport_press() -> None:
     if tomlConfig['processNumber'] in ['all cores', 'all', 'All']:
         tomlConfig['processNumber'] = multiprocessing.cpu_count()
 
-    # create list of required variables    
+    # create list of required variables
     if tomlConfig['verticalDimensionType'] == 'other':
-        reqVars = [tomlConfig['pressureName'], tomlConfig['temperatureName'], 
+        reqVars = [tomlConfig['pressureName'], tomlConfig['temperatureName'],
                 tomlConfig['meridionalWindName'], tomlConfig['verticalWindName']]
     else:
-        reqVars = [tomlConfig['temperatureName'], 
+        reqVars = [tomlConfig['temperatureName'],
                 tomlConfig['meridionalWindName'], tomlConfig['verticalWindName']]
-        
+
     if tomlConfig['tracerDataInMetFiles']: # if met and tracer data are in the same files.
         reqVars.extend(tomlConfig['tracerNames'])
 
     run_tracer_transport(mainCalcs, init_worker, tomlConfig, reqVars)
+
+
+# def run_wave_decomp(coord: str) -> None:
+#     """
+#     Shared driver for the stationary/transient wave decomposition commands.
+
+#     Reads all input files for the configured time period into memory, then
+#     calls the decomposition function once with the full list of datasets.
+#     Unlike the per-timestep transport commands, no multiprocessing pool is
+#     used: the decomposition is inherently a whole-period operation.
+
+#     Parameters
+#     ----------
+#     coord : str
+#         ``'press'`` for log-pressure coordinates, ``'theta'`` for isentropic.
+#     """
+#     timeStart = time.time()
+
+#     if coord == 'press':
+#         from .parser import wave_decomp_press_parser
+#         from .temporal_wave_decomp import waveDecompPress as decompFn
+#         from .interpolation import interpolateToPressureAndCombineData, interpolateToLogPressure
+#         parserArgs = wave_decomp_press_parser().parse_args()
+#     else:
+#         from .parser import wave_decomp_theta_parser
+#         from .temporal_wave_decomp import waveDecompTheta as decompFn
+#         from .interpolation import interpolateToThetaAndCombineData, interpolateToTheta
+#         parserArgs = wave_decomp_theta_parser().parse_args()
+
+#     from .file_io import readAndTransposeData, readDataAndGetWeightedAverage, saveOut
+#     from .utils import binData
+
+#     tomlConfig = load_and_merge_config(parserArgs)
+#     if tomlConfig['processNumber'] in ['all cores', 'all', 'All']:
+#         tomlConfig['processNumber'] = multiprocessing.cpu_count()
+
+#     if '{tracerNames}' in tomlConfig['outPrefix']:
+#         if isinstance(tomlConfig['tracerNames'], list):
+#             tomlConfig['outPrefix'] = tomlConfig['outPrefix'].replace('{tracerNames}', '_'.join(tomlConfig['tracerNames']))
+#         else:
+#             print("ERROR: option 'tracerNames' should be list of strings.")
+#             sys.exit(1)
+
+#     if not Path(tomlConfig['outputDirectory']).is_dir():
+#         print(f"ERROR: Directory '{tomlConfig['outputDirectory']}' does not exist.\n\n"
+#               "Please specify existing directory to store output files")
+#         sys.exit(1)
+
+#     # --- build required variable lists ---
+#     tracers = tomlConfig.get('tracerNames', [])
+#     if coord == 'press':
+#         met_vars = [tomlConfig['temperatureName'], tomlConfig['meridionalWindName']]
+#         if tomlConfig['verticalDimensionType'] == 'other':
+#             met_vars.insert(0, tomlConfig['pressureName'])
+#         if tomlConfig['verticalWindType'].lower() != 'missing':
+#             met_vars.append(tomlConfig['verticalWindName'])
+#         if tomlConfig.get('computeEPF', True):
+#             met_vars.append(tomlConfig['zonalWindName'])
+#     else:
+#         met_vars = [tomlConfig['pressureName'], tomlConfig['meridionalWindName'],
+#                     tomlConfig['verticalWindName']]
+#         if tomlConfig['verticalDimensionType'] == 'other':
+#             met_vars.insert(0, tomlConfig['thetaName'])
+#     met_vars = list(dict.fromkeys(met_vars))  # deduplicate, preserve order
+
+#     # --- collect file paths ---
+#     if tomlConfig['tracerDataInMetFiles']:
+#         pathsAndTime, missingTS, expFreq = collectFileNamesTTransport(
+#             tomlConfig['inputDirectory'], tomlConfig['inFileNames'],
+#             tomlConfig['timeInfoInFileNames'],
+#             dateStart=tomlConfig['startDate'], dateEnd=tomlConfig['endDate'])
+#         if missingTS:
+#             print(f"WARNING: {len(missingTS)} missing timestamp(s) estimated from "
+#                   f"expected frequency '{expFreq}'.")
+#     else:
+#         metPathsAndTime, metMissing, metExpFreq = collectFileNamesTTransport(
+#             tomlConfig['inputDirectory'], tomlConfig['inFileNames'],
+#             tomlConfig['timeInfoInFileNames'],
+#             dateStart=tomlConfig['startDate'], dateEnd=tomlConfig['endDate'])
+#         tracerPathsAndTime, tracerMissing, tracerExpFreq = collectFileNamesTTransport(
+#             tomlConfig['tracerInputDirectory'], tomlConfig['tracerInFileNames'],
+#             tomlConfig['tracerTimeInfoInFileNames'],
+#             dateStart=tomlConfig['startDate'], dateEnd=tomlConfig['endDate'])
+#         pathDictionary = chunkMetFilesPathsForBinning(
+#             metPathsAndTime, tracerPathsAndTime,
+#             tomlConfig['MetDataBinningTime'], tracerExpFreq, metExpFreq)
+#         if not pathDictionary:
+#             print("ERROR: No tracer timestamps could be matched to any met files.\n\n"
+#                   "Check that met and tracer file date ranges overlap and that "
+#                   "MetDataBinningTime is wide enough to capture at least one met file per tracer timestamp.")
+#             sys.exit(1)
+#         unmatched = [ts for ts in tracerPathsAndTime.index if ts not in pathDictionary]
+#         if unmatched:
+#             print(f"WARNING: {len(unmatched)} tracer timestamp(s) could not be matched "
+#                   "to any met files and will be skipped.")
+
+#     # --- load and interpolate all timesteps ---
+#     numOfFiles = (len(pathsAndTime) if tomlConfig['tracerDataInMetFiles']
+#                   else len(pathDictionary))
+#     print(f"Loading {numOfFiles} file(s)...")
+
+#     datasets: list = []
+
+#     if tomlConfig['tracerDataInMetFiles']:
+#         req_all = list(dict.fromkeys(met_vars + tracers))
+#         for path in pathsAndTime.Path:
+#             ds = readAndTransposeData(path, req_all,
+#                                       tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'],
+#                                       timeDimName=tomlConfig.get('timeDim', ''))
+#             if coord == 'press':
+#                 ds = interpolateToLogPressure(ds, req_all, tomlConfig['verticalDimensionType'],
+#                                               tomlConfig['targetLevels'], tomlConfig['vertDim'],
+#                                               tomlConfig['latDim'], tomlConfig['lonDim'],
+#                                               tomlConfig['pressureName'])
+#             else:
+#                 ds = interpolateToTheta(ds, req_all, tomlConfig)
+#             datasets.append(binData(ds, tomlConfig['binningLat'], tomlConfig['binningLon']))
+#     else:
+#         for ts, entry in pathDictionary.items():
+#             tracerPath, metPaths, metWeights = entry
+#             tracerDs = readAndTransposeData(tracerPath, tracers,
+#                                             tomlConfig['tracerVertDim'], tomlConfig['tracerLatDim'],
+#                                             tomlConfig['tracerLonDim'],
+#                                             timeDimName=tomlConfig.get('tracerTimeDim', ''))
+#             metDs = readDataAndGetWeightedAverage(metPaths, metWeights, met_vars,
+#                                                   tomlConfig['vertDim'], tomlConfig['latDim'],
+#                                                   tomlConfig['lonDim'])
+#             if coord == 'press':
+#                 ds = interpolateToPressureAndCombineData(tracerDs, metDs, met_vars, tomlConfig)
+#             else:
+#                 ds = interpolateToThetaAndCombineData(tracerDs, metDs, met_vars, tomlConfig)
+#             datasets.append(binData(ds, tomlConfig['binningLat'], tomlConfig['binningLon']))
+
+#     print(f"Computing decomposition over {len(datasets)} timestep(s)...")
+
+#     # --- run decomposition and save ---
+#     dataToSave, lats, vertCoord, wave_numbers = decompFn(datasets, tomlConfig)
+
+#     # Build a single output filename using start/end of the period
+#     timestamps = (list(pathsAndTime.index) if tomlConfig['tracerDataInMetFiles']
+#                   else list(pathDictionary.keys()))
+#     t0 = pd.Timestamp(timestamps[0])
+#     t1 = pd.Timestamp(timestamps[-1])
+#     fnout = (tomlConfig['outputDirectory'] + '/' + tomlConfig['outPrefix']
+#              + f"{t0.year}_{t0.month:02d}_{t0.day:02d}"
+#              + f"_to_{t1.year}_{t1.month:02d}_{t1.day:02d}.nc")
+
+#     import xarray as xr
+#     dsOut = xr.Dataset()
+#     vert_dim = 'alt' if coord == 'press' else 'theta'
+#     for var, (data, long_name, unit) in dataToSave.items():
+#         dsOut[var] = ((vert_dim, 'lat', 'waveN'), np.single(data))
+#         dsOut[var].attrs['long_name'] = long_name
+#         dsOut[var].attrs['units'] = unit
+#     dsOut.coords[vert_dim] = vertCoord
+#     if coord == 'press':
+#         dsOut[vert_dim].attrs['long_name'] = 'log-pressure altitude (z = -H·ln(p/ps), H=7 km, ps=1000 hPa)'
+#         dsOut[vert_dim].attrs['units'] = 'm'
+#     else:
+#         dsOut[vert_dim].attrs['long_name'] = 'potential temperature'
+#         dsOut[vert_dim].attrs['units'] = 'K'
+#     dsOut.coords['lat'] = lats
+#     dsOut.lat.attrs['long_name'] = 'latitude'
+#     dsOut.lat.attrs['units'] = 'degree_N'
+#     dsOut.coords['waveN'] = wave_numbers
+#     dsOut.waveN.attrs['long_name'] = 'wavenumber (number of waves per 360 degrees of longitude)'
+#     dsOut.attrs['period_start'] = str(t0)
+#     dsOut.attrs['period_end'] = str(t1)
+#     dsOut.attrs['n_timesteps'] = len(datasets)
+#     dsOut.to_netcdf(fnout)
+
+#     elapsed = time.time() - timeStart
+#     print(f"Done. Output written to {fnout}  ({elapsed:.1f}s)")
+
+
+# def run_wave_decomp_press() -> None:
+#     """Entry point for the ``wave-decomp-press`` CLI command."""
+#     run_wave_decomp('press')
+
+
+# def run_wave_decomp_theta() -> None:
+#     """Entry point for the ``wave-decomp-theta`` CLI command."""
+#     run_wave_decomp('theta')

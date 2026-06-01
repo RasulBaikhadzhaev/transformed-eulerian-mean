@@ -316,3 +316,57 @@ def tTransport_press_parser() -> argparse.ArgumentParser:
     _add_tracer_args(parser)
 
     return parser
+
+
+def wave_decomp_press_parser() -> argparse.ArgumentParser:
+    """
+    Build the argument parser for the log-pressure stationary/transient wave decomposition tool.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser for ``wave-decomp-press``, covering common arguments,
+        tracer-specific arguments, and the EP-flux decomposition flag.
+    """
+    parser = argparse.ArgumentParser(
+        description="Decompose eddy fluxes into stationary and transient contributions "
+                    "in log-pressure altitude coordinates, covering EP-flux and tracer transport.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument("configFile",
+                        help="path to the TOML configuration file.")
+
+    _add_common_args(parser)
+    _add_tracer_args(parser)
+
+    parser.add_argument("--computeEPF",
+                        default=_CFG,
+                        help="compute stationary/transient decomposition of the EP flux "
+                             "and eddy heat flux. Requires zonalWindName to be set. "
+                             "Accepts true or false.")
+
+    return parser
+
+
+def wave_decomp_theta_parser() -> argparse.ArgumentParser:
+    """
+    Build the argument parser for the isentropic stationary/transient wave decomposition tool.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser for ``wave-decomp-theta``, covering common arguments and
+        tracer-specific arguments for isentropic coordinates.
+    """
+    parser = argparse.ArgumentParser(
+        description="Decompose tracer eddy fluxes into stationary and transient contributions "
+                    "in isentropic (theta) coordinates.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    parser.add_argument("configFile",
+                        help="path to the TOML configuration file.")
+
+    _add_common_args(parser)
+    _add_tracer_args(parser)
+
+    return parser
