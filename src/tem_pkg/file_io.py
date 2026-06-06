@@ -428,6 +428,35 @@ def readAndTransposeData(
     return dataset
 
 
+def compute_temporal_mean(
+    paths: list[str],
+) -> xr.Dataset:
+    """
+    Compute the temporal mean of a set of NetCDF files by accumulating their sum.
+
+    Parameters
+    ----------
+    paths : list of str
+        Paths to the NetCDF files to average.
+    Returns
+    -------
+    xr.Dataset
+        Dataset containing the mean of all files.
+    """
+    total: xr.Dataset | None = None
+    count = 0
+    with xr.set_options(keep_attrs=True):
+        for path in paths:
+            ds = xr.open_dataset(path)
+            total = ds if total is None else total + ds
+            count += 1
+        if total is None or count == 0:
+            raise ValueError("No files were provided.")
+        
+        temporalMeanDS = total / count
+    return temporalMeanDS
+
+
 def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, reqVars: list[str], vertDimName: str, latDimName: str, lonDimName: str) -> xr.Dataset:
     """
     Read multiple NetCDF files and compute a weighted average across them.

@@ -1,6 +1,6 @@
 # Transformed Eulerian Mean
 
-> **Before publishing:** CHECK EQUATIONS IN THE README SOME ARE NOT DISPLAYED PROPERLY Update the Zenodo DOI badge below and in `CITATION.cff` with the real DOI after uploading to Zenodo. Also update the title, authors, and journal details in `CITATION.cff`.
+> **Before publishing:** CHECK EQUATIONS IN THE README SOME ARE NOT DISPLAYED PROPERLY Update the Zenodo DOI badge below and in `CITATION.cff` (ALSO AT THE END OF README IN HOW TO CITE SECTION) with the real DOI after uploading to Zenodo. Also update the title, authors, and journal details in `CITATION.cff`.
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 
@@ -87,7 +87,7 @@ $$M^{(\phi)} = -\rho_0\!\left(\overline{v'\chi'} - \overline{v'\theta'}\,\frac{\
 
 When potential temperature $\theta$ is the vertical coordinate, the analogue of the residual circulation is the diabatic mean circulation:
 
-$$v^* = \overline{\sigma v}/\bar{\sigma}, \qquad Q^* = \overline{\sigma Q}/\bar{\sigma}$$
+$$v^* = \langle\sigma v\rangle/\langle\sigma\rangle, \qquad Q^* = \langle\sigma Q\rangle/\langle\sigma\rangle$$
 
 where $\sigma = -g^{-1}\partial_\theta p$ is the isentropic density and $Q = \dot{\theta}$ is the diabatic heating rate. The tracer transport equation in isentropic coordinates is (Andrews et al., 1987, Eq. 9.4.21):
 
@@ -95,7 +95,7 @@ $$\partial_t \bar{\chi} = \bar{S} - \frac{v^*}{a}\partial_\phi \bar{\chi} - Q^*\
 
 with eddy flux vector components:
 
-$$M^{(\phi)} = -\overline{(\sigma v)'\chi'}, \qquad M^{(\theta)} = -\overline{(\sigma Q)'\chi'}$$
+$$M^{(\phi)} = -\langle(\sigma v)'\chi'\rangle, \qquad M^{(\theta)} = -\langle(\sigma Q)'\chi'\rangle$$
 
 ---
 
@@ -169,15 +169,39 @@ All calculations are performed on a fixed vertical grid. How the input data is m
 | `'other'` | Input is on model levels (sigma, hybrid, etc.); a 3-D pressure variable is required (`pressureName`) |
 | `'theta'` | `transport-theta` only: input vertical axis is potential temperature; no interpolation needed |
 
+`verticalWindType` must also be set to match the vertical wind variable available in your data:
+
+| Value | Meaning |
+|---|---|
+| `'omega'` | Vertical wind is pressure velocity (Pa s⁻¹); converted to m s⁻¹ internally |
+| `'W'` | Vertical wind is already in m s⁻¹ |
+| `'missing'` | No vertical wind available; W\* is diagnosed from V\* via the residual mass stream function (residual only) |
+| `'thetaDot'` | Diabatic heating rate dθ/dt (K s⁻¹); required for `transport-theta` |
+
 `targetLevels` sets the output vertical grid. For `residual` and `transport-press` it is in km (log-pressure altitude); for `transport-theta` it is in K (potential temperature).
 
 When the input is already on the target coordinate system (`'pressure'`, `'log-pressure'`, or `'theta'`), re-interpolation to a fixed grid can be skipped by setting `targetLevels = 'skip'`. The native vertical levels are then kept as-is. This is not supported when `verticalDimensionType = 'other'`, where a numeric `targetLevels` array is always required.
 
 ---
 
+### Wavenumber decomposition (`FourierTransform`, `Waves`)
+
+Set `FourierTransform = true` to enable per-wavenumber output. The `Waves` list controls which wavenumber bands are saved:
+
+| Entry | Effect |
+|---|---|
+| `'1'`, `'2'`, … | Save that individual wavenumber |
+| `'3-5'` | Sum wavenumbers 3 through 5 into a single band |
+| `'21-end'` | Sum from wavenumber 21 to the last resolved one |
+| `['all']` | Expand to every individual wavenumber from 1 to N_lon/2 |
+
+Wavenumber 0 (the zonal mean) is always excluded. The decomposition requires vertical wind data and is disabled automatically when `verticalWindType = 'missing'`.
+
+---
+
 ### Missing vertical wind (`verticalWindType = 'missing'`, residual only)
 
-If no vertical wind data is available, set `verticalWindType = 'missing'`. W* will then be estimated diagnostically from V* via the residual mass stream function. The EP flux vertical component is also calculated without W in this case. Fourier decomposition of the EP flux requires vertical wind and is disabled automatically when `verticalWindType = 'missing'`.
+If no vertical wind data is available, set `verticalWindType = 'missing'`. W* is then estimated diagnostically from V* via the residual mass stream function, and the EP flux vertical component is computed without the w′u′ term. Fourier decomposition of the EP flux requires vertical wind and is disabled automatically.
 
 ---
 
@@ -239,6 +263,55 @@ One entry per tracer (same order as `tracerNames`). Three formats are accepted:
 ### Spatial binning (`binningLat`, `binningLon`, transport only)
 
 `binningLat` and `binningLon` coarsen the output by averaging that many adjacent grid points into one along each axis. Set to `1` to keep the original resolution. When tracer and met data are on different horizontal grids, met data is interpolated to the tracer grid first, then binning is applied.
+
+---
+
+### Eddy term output (`saveEddyTerms`, residual only)
+
+Set `saveEddyTerms = true` to additionally save:
+- The zonal-mean eddy covariances v′θ′, v′u′, and w′u′ on the (alt, lat) grid.
+- The full three-dimensional anomaly fields v′, u′, θ′, w′, v′θ′, v′u′, w′u′ on the (alt, lat, lon) grid.
+
+When `FourierTransform = true`, the per-wavenumber covariances v′θ′_k, v′u′_k, and w′u′_k are also written.
+
+---
+
+### Hours filter (`hoursToKeep`, residual only)
+
+`hoursToKeep` restricts input files to specific UTC hours before any other filtering. For example, `hoursToKeep = [0, 6, 12, 18]` keeps only 6-hourly snapshots even if more frequent files are present. Set to `[]` to keep all hours.
+
+---
+
+### Input data description (`inputDataDescription`)
+
+A free-text string that is written as the global `Title` attribute in every output NetCDF file. Useful for recording the source dataset:
+
+```toml
+inputDataDescription = 'ERA5.1 reanalysis, ECMWF L137 model levels'
+```
+
+---
+
+### Time dimension name (`timeDim`)
+
+Controls how multi-timestep files are handled:
+
+- `timeDim = 'time'` — the input file has a named time dimension; the calculator iterates over each timestep and writes one output file per timestep.
+- `timeDim = ''` — each input file contains exactly one timestep with no time dimension.
+
+Note: `transport-press` and `transport-theta` require one NetCDF file per timestep and do not support the multi-timestep mode.
+
+---
+
+### Mass stream function (`massSF`, transport only)
+
+Set `massSF = true` to compute and save the residual mass stream function alongside the tracer budget terms. For `transport-press` this is the log-pressure $\Psi^*$ (same formula as the `residual` calculator); for `transport-theta` it is the isentropic stream function $\Psi_\theta$, computed by integrating $\bar{v}^*$ over pressure rather than altitude.
+
+---
+
+### Age-of-air and time-unit tracers
+
+Tracers whose units are a time quantity (e.g. age of air in years) are automatically converted to SI base units (seconds) before the budget computation. All output tendency terms for such tracers are in s s⁻¹ (i.e. dimensionless). No configuration is needed — the conversion is triggered by the physical dimensions of the `units` attribute in the input NetCDF file.
 
 ---
 
@@ -374,5 +447,27 @@ TEM_pkg/
 │   └── create_sample_files.py       # Helper to regenerate test input data
 └── pyproject.toml                   # Build config, dependencies, Pixi tasks
 ```
+
+---
+
+## Testing
+
+The package includes unit tests, integration tests, and regression tests against pre-computed reference output. Run the full test suite with coverage:
+
+```bash
+pixi run coverage
+```
+
+Sample input files (ERA5-like and CLaMS-like NetCDF) and baseline reference output are in `tests/data/`.
+
+---
+
+## How to cite
+
+If you use `tem_pkg` in published work, please cite the archived code release:
+
+> Baikhadzhaev, R. (2025). *tem_pkg: A Python package for Transformed Eulerian Mean diagnostics* (v0.8.0). Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
+
+A `CITATION.cff` file is included in the repository for reference managers that support it. Update the DOI badge and `CITATION.cff` with the real Zenodo DOI after uploading.
 
 ---

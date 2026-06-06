@@ -315,14 +315,14 @@ def run_tracer_transport_press() -> None:
     if tomlConfig['processNumber'] in ['all cores', 'all', 'All']:
         tomlConfig['processNumber'] = multiprocessing.cpu_count()
 
-    # create list of required variables    
+    # create list of required variables
     if tomlConfig['verticalDimensionType'] == 'other':
-        reqVars = [tomlConfig['pressureName'], tomlConfig['temperatureName'], 
+        reqVars = [tomlConfig['pressureName'], tomlConfig['temperatureName'],
                 tomlConfig['meridionalWindName'], tomlConfig['verticalWindName']]
     else:
-        reqVars = [tomlConfig['temperatureName'], 
+        reqVars = [tomlConfig['temperatureName'],
                 tomlConfig['meridionalWindName'], tomlConfig['verticalWindName']]
-        
+
     if tomlConfig['tracerDataInMetFiles']: # if met and tracer data are in the same files.
         reqVars.extend(tomlConfig['tracerNames'])
 

@@ -35,16 +35,46 @@ _rescirc_baseline_files = sorted(f.name for f in BASELINE_RESCIRC.glob("*.nc"))
 # Comparison helper
 # ---------------------------------------------------------------------------
 
+def _assert_attrs_match(ds_base, ds_out):
+    """
+    Check that variable attributes, coordinate attributes, and dataset-level
+    attributes in ds_out match those in ds_base exactly.
+    """
+    for var in ds_base.data_vars:
+        b_attrs = dict(ds_base[var].attrs)
+        o_attrs = dict(ds_out[var].attrs)
+        assert b_attrs == o_attrs, (
+            f"Attribute mismatch for variable '{var}':\n"
+            f"  baseline : {b_attrs}\n"
+            f"  output   : {o_attrs}"
+        )
+    for coord in ds_base.coords:
+        b_attrs = dict(ds_base[coord].attrs)
+        o_attrs = dict(ds_out[coord].attrs)
+        assert b_attrs == o_attrs, (
+            f"Attribute mismatch for coordinate '{coord}':\n"
+            f"  baseline : {b_attrs}\n"
+            f"  output   : {o_attrs}"
+        )
+    assert dict(ds_base.attrs) == dict(ds_out.attrs), (
+        f"Dataset-level attribute mismatch:\n"
+        f"  baseline : {dict(ds_base.attrs)}\n"
+        f"  output   : {dict(ds_out.attrs)}"
+    )
+
+
 def _assert_datasets_match(ds_base, ds_out, rtol=3e-3, atol=2e-7):
     """
     Compare two datasets variable by variable on finite elements only.
     NaN and ±inf positions are treated as fill values; their masks must
     be identical and all finite pairs must agree within rtol/atol.
+    Also checks that all variable, coordinate, and dataset attributes match.
     """
     assert set(ds_base.data_vars) == set(ds_out.data_vars), (
         f"Variable mismatch: baseline={set(ds_base.data_vars)}, "
         f"output={set(ds_out.data_vars)}"
     )
+    _assert_attrs_match(ds_base, ds_out)
     for var in ds_base.data_vars:
         b = np.array(ds_base[var])
         o = np.array(ds_out[var])

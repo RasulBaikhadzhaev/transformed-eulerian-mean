@@ -12,7 +12,7 @@ from scipy.integrate import cumulative_trapezoid
 from .constants import P0, Cp, R, Ts, angVeloEarth, gEarth, rEarth
 from .file_io import readAndTransposeData
 from .interpolation import alt2press, interpolateToLogPressure
-from .utils import nanGradient
+from .utils import apply_waves_banding, nanGradient
 
 
 def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dataset:
@@ -223,13 +223,13 @@ def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dat
                                         np.real(vPrimeFFT * np.conj(thetaPrimeFFT)) / (n_valid_vt * _N / 2) -
                                         np.real(uPrimeFFT * np.conj(wPrimeFFT)) / (n_valid_uw * _N / 2))) * units(str(EPFVert.units))
 
-        FourT['divEPFLat_WaveN'] = (1 / (rEarth.magnitude * cosFi[:, :, np.newaxis].magnitude) *
-                                nanGradient(FourT['EPFLat_WaveN'] * cosFi[:, :, np.newaxis].magnitude,
-                                                latsR, axis=1)).magnitude * units(str(divEPFLat.units))
-        
-        FourT['divEPFVert_WaveN'] = nanGradient(FourT['EPFVert_WaveN'], altitudes, axis=0).magnitude * units(str(divEPFVert.units))
-        
-        FourT['divEPF_WaveN'] = FourT['divEPFVert_WaveN'] + FourT['divEPFLat_WaveN']
+            FourT['divEPFLat_WaveN'] = (1 / (rEarth.magnitude * cosFi[:, :, np.newaxis].magnitude) *
+                                    nanGradient(FourT['EPFLat_WaveN'] * cosFi[:, :, np.newaxis].magnitude,
+                                                    latsR, axis=1)).magnitude * units(str(divEPFLat.units))
+            
+            FourT['divEPFVert_WaveN'] = nanGradient(FourT['EPFVert_WaveN'], altitudes, axis=0).magnitude * units(str(divEPFVert.units))
+            
+            FourT['divEPF_WaveN'] = FourT['divEPFVert_WaveN'] + FourT['divEPFLat_WaveN']
 
         # The Nyquist component (k=N//2) appears only once in the DFT (not twice like k=1..N//2-1),
         # so it was over-normalised by a factor of 2; correct that here.
@@ -247,62 +247,22 @@ def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dat
             for _et in eddyTermsFour:
                 eddyTermsFour[_et][:, :, _nyq] = eddyTermsFour[_et][:, :, _nyq] / 2
             
-        if len(tomlConfig['Waves']) == 1 and tomlConfig['Waves'][0].lower() == 'all':
-            FShape = np.zeros((FourT['EPFVert_WaveN'].shape[0], FourT['EPFVert_WaveN'].shape[1], FourT['EPFVert_WaveN'].shape[2] - 1)).shape
-            Fourier = {"EPFLat_WaveN": np.zeros((FShape)), "EPFVert_WaveN": np.zeros((FShape)),
-                        "divEPFVert_WaveN": np.zeros((FShape)), "divEPFLat_WaveN": np.zeros((FShape)),
-                        'divEPF_WaveN': np.zeros((FShape))}
+        waves_cfg = tomlConfig['Waves']
+        if len(waves_cfg) == 1 and waves_cfg[0].lower() == 'all':
+            waves_cfg = [str(k) for k in range(1, _N // 2 + 1)]
 
-            for variable in Fourier.keys():
-                Fourier[variable][:, :, :] = FourT[variable][:, :, 1:]
-        
-            waveNumbers = list(range(1, Fourier['divEPF_WaveN'].shape[2] + 1))    
-            
-            if tomlConfig['saveEddyTerms']:
-                for variable in eddyTermsFour.keys():
-                    Fourier[variable] = eddyTermsFour[variable][:, :, 1:]
-                    
-        else:
-            # Saving entire Fourier transform result usually significantly increases size of the output file.
-            # There is an option to save only some waves which are stored in tomlConfig dictionary as tomlConfig["Waves"]. 
-            # tomlConfig["Waves"] is expected to be a string "all" or a list of strings like "5" or "6-10" where in
-            # case of "6-10" sum of waves from 6 to 10 will be saved as a single 2d field
-            
-            FShape = np.zeros((FourT['EPFVert_WaveN'].shape[0], FourT['EPFVert_WaveN'].shape[1], len(tomlConfig['Waves']))).shape
-            Fourier = {"EPFLat_WaveN": np.zeros((FShape)), "EPFVert_WaveN": np.zeros((FShape)),
-                        "divEPFVert_WaveN": np.zeros((FShape)), "divEPFLat_WaveN": np.zeros((FShape)),
-                        'divEPF_WaveN': np.zeros((FShape))}
+        # Strip k=0 from all spectra before banding (k=0 is the zonal mean, not an eddy)
+        FourT_stripped = {var: arr[:, :, 1:] for var, arr in FourT.items()}
+        Fourier = {}
+        for variable, arr in FourT_stripped.items():
+            banded = apply_waves_banding(arr.magnitude, waves_cfg)
+            Fourier[variable] = banded
 
-            for variable in Fourier.keys():
-                for i, wave in enumerate(tomlConfig['Waves']):
-                    if '-' not in wave:  # if it is a single wave
-                        wave = int(wave)
-                        Fourier[variable][:, :, i] = FourT[variable][:, :, wave]
-                    elif 'end' not in wave and '-' in wave:  # if it is a range but not to the last wave
-                        waveStart = int(wave.split('-')[0])
-                        waveEnd = int(wave.split('-')[1])
-                        Fourier[variable][:, :, i] = np.nansum(FourT[variable][:, :, waveStart:waveEnd + 1], 2)
-                    else:  # if it is a range to the last wave
-                        waveStart = int(wave.split('-')[0])
-                        Fourier[variable][:, :, i] = np.nansum(FourT[variable][:, :, waveStart:], 2)
+        waveNumbers = waves_cfg
 
-            waveNumbers = tomlConfig['Waves']
-
-            if tomlConfig['saveEddyTerms']:
-                Fourier.update({'vPrimeThetaPrimeWaveN': np.zeros((FShape)), 'vPrimeUPrimeWaveN': np.zeros((FShape)),
-                                'wPrimeUPrimeWaveN': np.zeros((FShape))})
-                for variable in eddyTermsFour.keys():
-                    for i, wave in enumerate(tomlConfig['Waves']):
-                        if '-' not in wave:  # if it is a single wave
-                            wave = int(wave)
-                            Fourier[variable][:, :, i] = eddyTermsFour[variable][:, :, wave]
-                        elif 'end' not in wave and '-' in wave:  # if it is a range but not to the last wave
-                            waveStart = int(wave.split('-')[0])
-                            waveEnd = int(wave.split('-')[1])
-                            Fourier[variable][:, :, i] = np.nansum(eddyTermsFour[variable][:, :, waveStart:waveEnd + 1], 2)
-                        else:  # if it is a range to the last wave
-                            waveStart = int(wave.split('-')[0])
-                            Fourier[variable][:, :, i] = np.nansum(eddyTermsFour[variable][:, :, waveStart:], 2)
+        if tomlConfig['saveEddyTerms']:
+            for variable, arr in eddyTermsFour.items():
+                Fourier[variable] = apply_waves_banding(arr[:, :, 1:], waves_cfg)
 
         dataToSaveFourier = {
             'EPFVert_WaveN': (Fourier['EPFVert_WaveN'], 'vertical component of Eliassen-Palm flux', str(EPFVert.units)),

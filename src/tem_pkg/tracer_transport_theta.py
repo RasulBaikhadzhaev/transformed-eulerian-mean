@@ -10,7 +10,7 @@ from scipy.integrate import cumulative_trapezoid
 from .constants import gEarth, rEarth
 from .file_io import readAndTransposeData, readDataAndGetWeightedAverage, saveOut
 from .interpolation import interpolateToTheta, interpolateToThetaAndCombineData
-from .utils import addRatioUnits, binData, nanGradient
+from .utils import addRatioUnits, apply_waves_banding, binData, nanGradient
 
 
 def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[dict, np.ndarray, Any]:
@@ -104,7 +104,7 @@ def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[
         div_M_theta = nanGradient(M_theta, thetaLevels, axis=0)
                 
         sinkSource = 0 * chi.units / units('s')
-        if str.isdigit(tomlConfig['sinksSources'][index]): # if sinkSource is integer
+        if tomlConfig['sinksSources'][index].isdigit():
             sinkSource = int(tomlConfig['sinksSources'][index]) * chi.units / units('s')
         elif 'half life' in tomlConfig['sinksSources'][index]:
             halfLife = float(tomlConfig['sinksSources'][index].split(', ')[1])
@@ -136,28 +136,30 @@ def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[
             # Using n_valid instead of lons.size in the Parseval normalisation ensures
             # that nan_to_num (which zeros NaN positions) stays consistent with the
             # real-space nanmean (which ignores NaN positions).
-            n_valid_v = np.sum(np.isfinite(sigmaDensity_v_prime.magnitude), axis=2, keepdims=True)
-            n_valid_q = np.sum(np.isfinite(sigmaDensity_q_prime.magnitude), axis=2, keepdims=True)
+            n_valid_v = np.sum(np.isfinite(sigmaDensity_v_prime.magnitude * chiPrime.magnitude), axis=2, keepdims=True)
+            n_valid_q = np.sum(np.isfinite(sigmaDensity_q_prime.magnitude * chiPrime.magnitude), axis=2, keepdims=True)
             _N = lons.size  # full FFT length
 
-            # / (n_valid * N / 2) ensures sum of _WN over all wave indices equals the real-space eddy flux
-            FourTNDBD = {}
+            # Compute σ-weighted cross-spectra as plain numpy arrays (no units yet).
+            # Dividing by σ̄ is the step that gives the correct physical units;
+            # attaching units beforehand would require tracking σv′χ′ units through
+            # gradient operations and is error-prone.
+            sigma_bar_3d = sigmaDensityBar.magnitude[:, :, np.newaxis]
             with np.errstate(invalid='ignore'):
-                FourTNDBD[f'{tracer}_m_lat_WN'] = (-np.real(sigmaDensity_v_primeFFT * np.conj(ChiPrimeFFT)) /
-                                                    (n_valid_v * _N / 2)) * units(str(m_lat.units))
+                m_lat_spec = -np.real(sigmaDensity_v_primeFFT * np.conj(ChiPrimeFFT)) / (n_valid_v * _N / 2)
+                m_theta_spec = -np.real(sigmaDensity_q_primeFFT * np.conj(ChiPrimeFFT)) / (n_valid_q * _N / 2)
+                divm_lat_spec = (1 / (rEarth.magnitude * cosFi[:, :, np.newaxis]) *
+                                 nanGradient(m_lat_spec * cosFi[:, :, np.newaxis], latsR, axis=1))
+                divm_theta_spec = nanGradient(m_theta_spec, thetaLevels.magnitude, axis=0)
+                divm_spec = divm_lat_spec + divm_theta_spec
 
-                FourTNDBD[f'{tracer}_m_theta_WN'] = (-np.real(sigmaDensity_q_primeFFT * np.conj(ChiPrimeFFT)) /
-                                                      (n_valid_q * _N / 2)) * units(str(m_theta.units))
-
-                FourTNDBD[f'{tracer}_divm_lat_WN'] = (1 / (rEarth * cosFi[:, :, np.newaxis]) * nanGradient(FourTNDBD[f'{tracer}_m_lat_WN'] * cosFi[:, :, np.newaxis], latsR, axis=1))
-
-                FourTNDBD[f'{tracer}_divm_theta_WN'] = nanGradient(FourTNDBD[f'{tracer}_m_theta_WN'], thetaLevels, axis=0)
-
-                FourTNDBD[f'{tracer}_divm_WN'] = FourTNDBD[f'{tracer}_divm_theta_WN'] + FourTNDBD[f'{tracer}_divm_lat_WN']
-
-            FourT = {}
-            for variable in FourTNDBD.keys():
-                FourT[variable] = FourTNDBD[variable] / sigmaDensityBar[:,:,np.newaxis]
+            FourT = {
+                f'{tracer}_m_lat_WN': (m_lat_spec / sigma_bar_3d) * m_lat.units,
+                f'{tracer}_m_theta_WN': (m_theta_spec / sigma_bar_3d) * m_theta.units,
+                f'{tracer}_divm_lat_WN': (divm_lat_spec / sigma_bar_3d) * divm_lat.units,
+                f'{tracer}_divm_theta_WN': (divm_theta_spec / sigma_bar_3d) * divm_theta.units,
+                f'{tracer}_divm_WN': (divm_spec / sigma_bar_3d) * divm_lat.units,
+            }
 
             # The Nyquist component (k=N//2) appears only once in the DFT (not twice like k=1..N//2-1),
             # so it was over-normalised by a factor of 2; correct that here.
@@ -165,46 +167,33 @@ def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[
             for variable in FourT:
                 FourT[variable][:, :, _nyq] = FourT[variable][:, :, _nyq] / 2
 
-            if len(tomlConfig['Waves']) == 1 and tomlConfig['Waves'][0].lower() == 'all':
-                FShape = np.zeros((FourT[f'{tracer}_m_lat_WN'].shape[0], FourT[f'{tracer}_m_lat_WN'].shape[1], FourT[f'{tracer}_m_lat_WN'].shape[2] - 1)).shape
-                Fourier = {f'{tracer}_m_lat_WN': [np.zeros((FShape)), f'Fourier transform of meridional eddy flux vector of {tracer} divided by basic density', str(m_lat.units)], 
-                            f'{tracer}_m_theta_WN': [np.zeros((FShape)), f'Fourier transform of vertical eddy flux vector of {tracer} divided by basic density', str(m_theta.units)],
-                            f'{tracer}_divm_lat_WN': [np.zeros((FShape)), f'Fourier transform of horizontal eddy mixing tendency of {tracer}', str(divm_lat.units)], 
-                            f'{tracer}_divm_theta_WN': [np.zeros((FShape)), f'Fourier transform of vertical eddy mixing tendency of {tracer}', str(divm_theta.units)],
-                            f'{tracer}_divm_WN': [np.zeros((FShape)), f'Fourier transform of eddy mixing tendency of {tracer}', str(divm_lat.units)]}
+            waves_cfg = tomlConfig['Waves']
+            if len(waves_cfg) == 1 and waves_cfg[0].lower() == 'all':
+                waves_cfg = [str(k) for k in range(1, _N // 2 + 1)]
 
-                for variable in Fourier.keys():
-                    Fourier[variable][0][:, :, :] = FourT[variable][:, :, 1:]
-                    
-                
-            else:
-                # Save only the wavenumber bands listed in tomlConfig['Waves'].
-                # Each entry is either a single wave (e.g. "5") or a range (e.g. "6-10"),
-                # where a range is summed into one 2-D field.
-                FShape = np.zeros((FourT[f'{tracer}_m_lat_WN'].shape[0], FourT[f'{tracer}_m_lat_WN'].shape[1], len(tomlConfig['Waves']))).shape
-                Fourier = {f'{tracer}_m_lat_WN': [np.zeros((FShape)), f'Fourier transform of meridional eddy flux vector of {tracer} divided by basic density', str(m_lat.units)], 
-                            f'{tracer}_m_theta_WN': [np.zeros((FShape)), f'Fourier transform of vertical eddy flux vector of {tracer} divided by basic density', str(m_theta.units)],
-                            f'{tracer}_divm_lat_WN': [np.zeros((FShape)), f'Fourier transform of horizontal eddy mixing tendency of {tracer}', str(divm_lat.units)], 
-                            f'{tracer}_divm_theta_WN': [np.zeros((FShape)), f'Fourier transform of vertical eddy mixing tendency of {tracer}', str(divm_theta.units)],
-                            f'{tracer}_divm_WN': [np.zeros((FShape)), f'Fourier transform of eddy mixing tendency of {tracer}', str(divm_lat.units)]}
-
-                for variable in Fourier.keys():
-                    for i, wave in enumerate(tomlConfig['Waves']):
-                        if '-' not in wave:  # if it is a single wave
-                            wave = int(wave)
-                            Fourier[variable][0][:, :, i] = FourT[variable][:, :, wave]
-                        elif 'end' not in wave and '-' in wave:  # if it is a range but not to the last wave
-                            waveStart = int(wave.split('-')[0])
-                            waveEnd = int(wave.split('-')[1])
-                            Fourier[variable][0][:, :, i] = np.nansum(FourT[variable][:, :, waveStart:waveEnd + 1], 2)
-                        else:  # if it is a range to the last wave
-                            waveStart = int(wave.split('-')[0])
-                            Fourier[variable][0][:, :, i] = np.nansum(FourT[variable][:, :, waveStart:], 2)
+            long_names = {
+                f'{tracer}_m_lat_WN': f'Fourier transform of meridional eddy flux vector of {tracer} divided by basic density',
+                f'{tracer}_m_theta_WN': f'Fourier transform of vertical eddy flux vector of {tracer} divided by basic density',
+                f'{tracer}_divm_lat_WN': f'Fourier transform of horizontal eddy mixing tendency of {tracer}',
+                f'{tracer}_divm_theta_WN': f'Fourier transform of vertical eddy mixing tendency of {tracer}',
+                f'{tracer}_divm_WN': f'Fourier transform of eddy mixing tendency of {tracer}',
+            }
+            unit_strs = {
+                f'{tracer}_m_lat_WN': str(m_lat.units),
+                f'{tracer}_m_theta_WN': str(m_theta.units),
+                f'{tracer}_divm_lat_WN': str(divm_lat.units),
+                f'{tracer}_divm_theta_WN': str(divm_theta.units),
+                f'{tracer}_divm_WN': str(divm_lat.units),
+            }
+            # Strip k=0 from FourT before banding (k=0 is the zonal mean, not an eddy)
+            FourT_stripped = {var: arr[:, :, 1:] for var, arr in FourT.items()}
+            Fourier = {}
+            for variable, arr in FourT_stripped.items():
+                banded = apply_waves_banding(arr.magnitude, waves_cfg)
+                Fourier[variable] = [banded, long_names[variable], unit_strs[variable]]
 
             FourierToSave.update(Fourier)
-
-
-    dataToSave['Fourier'] = FourierToSave
+            dataToSave['Fourier'] = FourierToSave
 
 
     return dataToSave, lats, thetaLevels
