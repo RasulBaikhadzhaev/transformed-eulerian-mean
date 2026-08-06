@@ -198,7 +198,8 @@ def mainCalcs(tomlConfig, count, pathsAndTime='', reqVarsWithTracers='', pathDic
             timeStamp = list(pathsAndTime.index)[count]
             
             dataset = readAndTransposeData(pathsAndTime['Path'][count], reqVarsWithTracers, tomlConfig['vertDim'], 
-                                        tomlConfig['latDim'], tomlConfig['lonDim'])
+                                        tomlConfig['latDim'], tomlConfig['lonDim'],
+                                        fillValues=tomlConfig.get('fillValues', []))
             interpolatedDataset = interpolateToTheta(dataset, reqVarsWithTracers, tomlConfig)
             
         else:
@@ -209,10 +210,12 @@ def mainCalcs(tomlConfig, count, pathsAndTime='', reqVarsWithTracers='', pathDic
             metFilesWeights = pathDictionary[list(pathDictionary.keys())[count]][2]
 
             tracerDataset = readAndTransposeData(tracerFilePath, tomlConfig['tracerNames'],
-                                                tomlConfig['tracerVertDim'], tomlConfig['tracerLatDim'], tomlConfig['tracerLonDim'])
+                                                tomlConfig['tracerVertDim'], tomlConfig['tracerLatDim'], tomlConfig['tracerLonDim'],
+                                                fillValues=tomlConfig.get('fillValues', []))
             
             metDataset = readDataAndGetWeightedAverage(metFilePaths, metFilesWeights, reqVars,
-                                                    tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'])
+                                                    tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'],
+                                                    fillValues=tomlConfig.get('fillValues', []))
 
             interpolatedDataset = interpolateToThetaAndCombineData(tracerDataset, metDataset, reqVars, tomlConfig)
 

@@ -94,6 +94,10 @@ hoursToKeep = []
 # Accepts true or false. Only works when outputTemporalMean = false.
 outDirSkip = false
 
+# Fill/missing values to replace with NaN when reading input files.
+# Set to [] to disable (default). Example: fillValues = [-1e+30, -999]
+fillValues = [-1e+30]
+
 # Save eddy flux terms used in the calculations to the output file.
 # Some terms are 3-dimensional and require significant storage.
 # Accepts true or false.

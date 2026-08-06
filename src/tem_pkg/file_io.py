@@ -267,11 +267,24 @@ def chunkMetFilesPathsForBinning(metFilesPaths, tracerFilesPaths, MetDataBinning
     return pathDictionary
 
 
-def readAndTransposeData(filePath, reqVars, vertDimName, latDimName, lonDimName, saveInterpolatedZonalMeanVars=[], saveZonalMeanVars=[]):
+def _replace_fill_values(dataset, fillValues):
+    '''Replace user-specified fill values with NaN in all data variables.'''
+    if not fillValues:
+        return dataset
+    for var in dataset.data_vars:
+        mask = True
+        for fv in fillValues:
+            mask = mask & (dataset[var] != fv)
+        dataset[var] = dataset[var].where(mask)
+    return dataset
+
+
+def readAndTransposeData(filePath, reqVars, vertDimName, latDimName, lonDimName, saveInterpolatedZonalMeanVars=[], saveZonalMeanVars=[], fillValues=[]):
     '''
     Reads a NetCDF file and standardizes dimension order to [Vertical, Latitude, Longitude].
     '''
     dataset = xr.open_dataset(filePath)[reqVars + saveInterpolatedZonalMeanVars + saveZonalMeanVars].squeeze()
+    dataset = _replace_fill_values(dataset, fillValues)
     if 'time' in dataset.dims:
         dataset = dataset.transpose('time', vertDimName, latDimName, lonDimName)
     else:
@@ -279,10 +292,11 @@ def readAndTransposeData(filePath, reqVars, vertDimName, latDimName, lonDimName,
     return dataset
 
 
-def readDataAndGetWeightedAverage(filesPaths, weights, reqVars, vertDimName, latDimName, lonDimName):
+def readDataAndGetWeightedAverage(filesPaths, weights, reqVars, vertDimName, latDimName, lonDimName, fillValues=[]):
     '''Computes a weighted average of multiple NetCDF files (e.g., for time-binning met data).'''
     for index, path in enumerate(filesPaths):
         dataset = xr.open_dataset(path)[reqVars].squeeze()
+        dataset = _replace_fill_values(dataset, fillValues)
         if index == 0:
             weightedMeanDataset = dataset * weights[index]
         else:

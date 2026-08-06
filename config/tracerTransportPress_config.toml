@@ -93,6 +93,10 @@ endDate = ''
 # Accepts true or false.
 outDirSkip = false
 
+# Fill/missing values to replace with NaN when reading input files.
+# Set to [] to disable (default). Example: fillValues = [-1e+30, -999]
+fillValues = [-1e+30]
+
 
 ####################################################################################################
 # Variables and dimensions of the input (meteorological) files

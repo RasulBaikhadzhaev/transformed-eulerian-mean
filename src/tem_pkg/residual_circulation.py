@@ -407,6 +407,7 @@ def mainCalcs(pathsAndTimeChunk, reqVars, tomlConfig, saveInterpolatedZonalMeanV
             pathsAndTimeChunk.Path.iloc[0], reqVars,
             tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'],
             saveInterpolatedZonalMeanVars, saveZonalMeanVars,
+            fillValues=tomlConfig.get('fillValues', []),
         )
         if timeDim and timeDim in dataset.dims:
             mean = str(tomlConfig['outputTemporalMean']).lower()
@@ -445,6 +446,7 @@ def mainCalcs(pathsAndTimeChunk, reqVars, tomlConfig, saveInterpolatedZonalMeanV
             dataset = readAndTransposeData(
                 path, reqVars, tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'],
                 saveInterpolatedZonalMeanVars, saveZonalMeanVars,
+                fillValues=tomlConfig.get('fillValues', []),
             )
             if timeDim and timeDim in dataset.dims:
                 for time2 in dataset[timeDim]:
