@@ -127,6 +127,11 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
                         help="name of the time dimension in the input file. "
                              "Set to '' if files have no time dimension.")
 
+    parser.add_argument("--fillValues",
+                        default=_CFG,
+                        help="list of fill/missing values to replace with NaN on input. "
+                             "Example: [-1e+30, -999]. Set to [] to disable (default).")
+
 
 def _add_tracer_args(parser: argparse.ArgumentParser) -> None:
     """

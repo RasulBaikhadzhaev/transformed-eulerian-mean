@@ -381,11 +381,22 @@ def chunkMetFilesPathsForBinning(metFilesPaths: pd.DataFrame, tracerFilesPaths: 
 
     return pathDictionary
 
+def _replace_fill_values(dataset: xr.Dataset, fillValues: list) -> xr.Dataset:
+    """Replace user-specified fill values with NaN in all data variables."""
+    if not fillValues:
+        return dataset
+    for var in dataset.data_vars:
+        mask = True
+        for fv in fillValues:
+            mask = mask & (dataset[var] != fv)
+        dataset[var] = dataset[var].where(mask)
+    return dataset
+
 
 def readAndTransposeData(
     filePath: str, reqVars: list[str], vertDimName: str, latDimName: str, lonDimName: str,
     saveInterpolatedZonalMeanVars: list[str] = [], saveZonalMeanVars: list[str] = [],
-    timeDimName: str = '',
+    timeDimName: str = '', fillValues: list = [],
 ) -> xr.Dataset:
     """
     Read a NetCDF file and standardize dimension order to (vertical, lat, lon).
@@ -412,6 +423,8 @@ def readAndTransposeData(
     timeDimName : str
         Name of the time dimension in the file. Pass ``''`` (default) if files
         have no time dimension or it should be squeezed away.
+    fillValues : list
+        Fill/missing values to replace with NaN on input. Default is ``[]`` (disabled).
 
     Returns
     -------
@@ -421,6 +434,7 @@ def readAndTransposeData(
     """
     with xr.open_dataset(filePath) as ds:
         dataset = ds[reqVars + saveInterpolatedZonalMeanVars + saveZonalMeanVars].squeeze().load()
+    dataset = _replace_fill_values(dataset, fillValues)
     if timeDimName and timeDimName in dataset.dims:
         dataset = dataset.transpose(timeDimName, vertDimName, latDimName, lonDimName)
     else:
@@ -457,7 +471,7 @@ def compute_temporal_mean(
     return temporalMeanDS
 
 
-def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, reqVars: list[str], vertDimName: str, latDimName: str, lonDimName: str) -> xr.Dataset:
+def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, reqVars: list[str], vertDimName: str, latDimName: str, lonDimName: str, fillValues: list = []) -> xr.Dataset:
     """
     Read multiple NetCDF files and compute a weighted average across them.
 
@@ -478,6 +492,8 @@ def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, r
         Name of the latitude dimension.
     lonDimName : str
         Name of the longitude dimension.
+    fillValues : list
+        Fill/missing values to replace with NaN on input. Default is ``[]`` (disabled).
 
     Returns
     -------
@@ -487,6 +503,7 @@ def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, r
     for index, path in enumerate(filesPaths):
         with xr.open_dataset(path) as ds:
             dataset = ds[reqVars].squeeze().load()
+        dataset = _replace_fill_values(dataset, fillValues)
         if index == 0:
             weightedMeanDataset = dataset * weights[index]
             attrs = {v: dataset[v].attrs for v in reqVars}
