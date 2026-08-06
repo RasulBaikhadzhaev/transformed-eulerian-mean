@@ -492,6 +492,7 @@ def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: d
             tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'],
             saveInterpolatedZonalMeanVars, saveZonalMeanVars,
             timeDimName=tomlConfig.get('timeDim', ''),
+            fillValues=tomlConfig.get('fillValues', []),
         )
         if timeDim and timeDim in dataset.dims:
             mean = str(tomlConfig['outputTemporalMean']).lower()
@@ -531,6 +532,7 @@ def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: d
                 path, reqVars, tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'],
                 saveInterpolatedZonalMeanVars, saveZonalMeanVars,
                 timeDimName=tomlConfig.get('timeDim', ''),
+                fillValues=tomlConfig.get('fillValues', []),
             )
             if timeDim and timeDim in dataset.dims:
                 for time2 in dataset[timeDim]:
