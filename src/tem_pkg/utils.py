@@ -98,7 +98,7 @@ def format_seconds(seconds: float) -> str:
 
 def init_spinner(stop_event: Any, timeStart: float) -> None:
     """
-    Print a rotating 'Initialising...' spinner until *stop_event* is set.
+    Print an animated 'Initialisation...' label until *stop_event* is set.
 
     Intended to run in a daemon thread while file collection and path-matching
     are in progress (before the multiprocessing pool starts).
@@ -110,11 +110,11 @@ def init_spinner(stop_event: Any, timeStart: float) -> None:
     timeStart : float
         Start time from ``time.time()``, used to compute elapsed time.
     """
-    spinner = ['|', '/', '-', '\\']
+    spinner = ['.  ', '.. ', '...']
     spin_idx = 0
     while not stop_event.is_set():
         elapsed_str = format_seconds(time.time() - timeStart)
-        sys.stdout.write(f"\rInitialising... {spinner[spin_idx % 4]} | Time elapsed: {elapsed_str}\033[K")
+        sys.stdout.write(f"\rInitialisation{spinner[spin_idx % 3]} | Time elapsed: {elapsed_str}\033[K")
         sys.stdout.flush()
         spin_idx += 1
         time.sleep(0.25)
