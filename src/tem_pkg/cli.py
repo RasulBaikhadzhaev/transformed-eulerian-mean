@@ -95,8 +95,12 @@ def run_residual() -> None:
         for timeStamp in missingTimeStamps:
             print(timeStamp)
         print(f"Number of missing files which are expected from typical data frequency: {len(missingTimeStamps)}")
-    
+
     numOfFiles = len(pathsAndTime)
+
+    spinnerStop = threading.Event()
+    spinnerThread = threading.Thread(target=init_spinner, args=(spinnerStop, timeStart), daemon=True)
+    spinnerThread.start()
 
     # chunk pathAndTime by month, day or instance.
     if str(config['outputTemporalMean']).lower() in ['monthly', 'month'] and is_equal_or_shorter_than_month(expectedFrequency):
@@ -106,8 +110,13 @@ def run_residual() -> None:
     else:
         pathsAndTimeChunked = {index: group for index, group in pathsAndTime.groupby(pathsAndTime.index)}
 
+    spinnerStop.set()
+    spinnerThread.join()
+    sys.stdout.write("\n")
+    sys.stdout.flush()
+
     reporter = threading.Thread(
-            target=progress_reporter, 
+            target=progress_reporter,
             args=(sharedCounter, numOfFiles, timeStart)
         )
     reporter.daemon = True # Allows the program to exit if the thread is stuck
