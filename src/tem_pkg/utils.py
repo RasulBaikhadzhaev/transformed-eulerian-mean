@@ -96,6 +96,30 @@ def format_seconds(seconds: float) -> str:
     return " ".join(parts) if parts else "0s"
 
 
+def init_spinner(stop_event: Any, timeStart: float) -> None:
+    """
+    Print a rotating 'Initialising...' spinner until *stop_event* is set.
+
+    Intended to run in a daemon thread while file collection and path-matching
+    are in progress (before the multiprocessing pool starts).
+
+    Parameters
+    ----------
+    stop_event : threading.Event
+        Set this event from the main thread to stop the spinner.
+    timeStart : float
+        Start time from ``time.time()``, used to compute elapsed time.
+    """
+    spinner = ['|', '/', '-', '\\']
+    spin_idx = 0
+    while not stop_event.is_set():
+        elapsed_str = format_seconds(time.time() - timeStart)
+        sys.stdout.write(f"\rInitialising... {spinner[spin_idx % 4]} | Time elapsed: {elapsed_str}\033[K")
+        sys.stdout.flush()
+        spin_idx += 1
+        time.sleep(0.25)
+
+
 def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
     """
     Print a CLI progress bar to stdout, updating every second until done.
@@ -113,15 +137,6 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
     timeStart : float
         Start time from ``time.time()``, used to compute elapsed time.
     """
-    spinner = ['|', '/', '-', '\\']
-    spin_idx = 0
-    while counter.value == 0:
-        elapsed_str = format_seconds(time.time() - timeStart)
-        sys.stdout.write(f"\rInitialising... {spinner[spin_idx % 4]} | Time elapsed: {elapsed_str}\033[K")
-        sys.stdout.flush()
-        spin_idx += 1
-        time.sleep(0.25)
-
     while True:
         currentN = counter.value
         elapsed_str = format_seconds(time.time() - timeStart)

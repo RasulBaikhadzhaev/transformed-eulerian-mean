@@ -14,6 +14,7 @@ import pandas as pd
 
 from .file_io import chunkMetFilesPathsForBinning, collectFileNames, collectFileNamesTTransport
 from .utils import (
+    init_spinner,
     is_equal_or_shorter_than_day,
     is_equal_or_shorter_than_month,
     load_and_merge_config,
@@ -168,6 +169,9 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
                 "Please specify existing directory to store output files")
         sys.exit(1)
 
+    spinnerStop = threading.Event()
+    spinnerThread = threading.Thread(target=init_spinner, args=(spinnerStop, timeStart), daemon=True)
+
     if tomlConfig['tracerDataInMetFiles']:
         # tracer and met data are in the same files
         pathsAndTime, missingTimeStamps, expectedFrequency = collectFileNames(tomlConfig['inputDirectory'],
@@ -186,6 +190,7 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
 
         numOfFiles = len(pathsAndTime)
         numbers = list(range(len(pathsAndTime)))
+        spinnerThread.start()
 
     else:
         # met and tracer data are in different files; met data expected at same or higher temporal frequency
@@ -216,26 +221,37 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
             print(f"Number of missing tracer files which are expected from typical data frequency: {len(tracerMissing)}")
             print(f"Number of missing met data files which are expected from typical data frequency: {len(metMissing)}")
 
+        spinnerThread.start()
         pathDictionary = chunkMetFilesPathsForBinning(metPathsAndTime, tracerPathsAndTime, tomlConfig['MetDataBinningTime'], tracerExpFreq, metExpFreq)
 
         if not pathDictionary:
-            print("ERROR: No tracer timestamps could be matched to any met files.\n\n"
+            spinnerStop.set()
+            print("\nERROR: No tracer timestamps could be matched to any met files.\n\n"
                   "Check that met and tracer file date ranges overlap and that "
                   "MetDataBinningTime is wide enough to capture at least one met file per tracer timestamp.")
             sys.exit(1)
 
         unmatched = [ts for ts in tracerPathsAndTime.index if ts not in pathDictionary]
         if unmatched:
-            print(f"WARNING: {len(unmatched)} tracer timestamp(s) could not be matched to any met files and will be skipped:")
+            spinnerStop.set()
+            spinnerThread.join()
+            print(f"\nWARNING: {len(unmatched)} tracer timestamp(s) could not be matched to any met files and will be skipped:")
             for ts in unmatched:
                 print(f"  {ts}")
+            spinnerStop.clear()
+            spinnerThread = threading.Thread(target=init_spinner, args=(spinnerStop, timeStart), daemon=True)
+            spinnerThread.start()
 
         numOfFiles = len(pathDictionary)
         numbers = list(range(len(pathDictionary)))
 
+    spinnerStop.set()
+    spinnerThread.join()
+    sys.stdout.write("\n")
+    sys.stdout.flush()
 
     reporter = threading.Thread(
-            target=progress_reporter, 
+            target=progress_reporter,
             args=(sharedCounter, numOfFiles, timeStart)
         )
     reporter.daemon = True # Allows the program to exit if the thread is stuck
