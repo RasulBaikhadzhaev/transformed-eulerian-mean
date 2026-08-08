@@ -117,7 +117,7 @@ def init_spinner(stop_event: Any, timeStart: float) -> None:
         sys.stdout.write(f"\rInitialisation{spinner[spin_idx % 3]} | Time elapsed: {elapsed_str}\033[K")
         sys.stdout.flush()
         spin_idx += 1
-        time.sleep(0.25)
+        time.sleep(1/3)
 
 
 def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
@@ -137,22 +137,26 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
     timeStart : float
         Start time from ``time.time()``, used to compute elapsed time.
     """
+    dots = ['.  ', '.. ', '...']
+    dot_idx = 0
     while True:
         currentN = counter.value
         elapsed_str = format_seconds(time.time() - timeStart)
+        pct = f"\033[1m{(currentN/totalN)*100:4.2f}%\033[0m"
 
         sys.stdout.write(
-            f"\rFiles processed: {currentN}/{totalN} ({(currentN/totalN)*100:4.2f}%) | "
+            f"\rProcessing{dots[dot_idx % 3]} | {currentN}/{totalN} files {pct} | "
             f"Time elapsed: {elapsed_str}\033[K"
         )
         sys.stdout.flush()
+        dot_idx += 1
 
         if currentN >= totalN:
             sys.stdout.write("\n")
             sys.stdout.flush()
             break
 
-        time.sleep(1)
+        time.sleep(1/3)
 
 
 def binData(dataset: Any, binningLat: int, binningLon: int) -> Any:
