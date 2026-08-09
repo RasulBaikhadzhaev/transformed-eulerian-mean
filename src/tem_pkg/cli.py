@@ -199,7 +199,6 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
             print(f"Number of missing files which are expected from typical data frequency: {len(missingTimeStamps)}")
 
         numOfFiles = len(pathsAndTime)
-        numbers = list(range(len(pathsAndTime)))
         spinnerThread.start()
 
     else:
@@ -253,7 +252,6 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
             spinnerThread.start()
 
         numOfFiles = len(pathDictionary)
-        numbers = list(range(len(pathDictionary)))
 
     spinnerStop.set()
     spinnerThread.join()
