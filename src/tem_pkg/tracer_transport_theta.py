@@ -212,7 +212,7 @@ def init_worker(shared_counter: Any) -> None:
     counter = shared_counter
 
 
-def mainCalcs(tomlConfig: dict, count: int, pathsAndTime: Any = '', reqVarsWithTracers: Any = '', pathDictionary: Any = '', reqVars: Any = '') -> None:
+def mainCalcs(tomlConfig: dict, task_path: Any = '', reqVarsWithTracers: Any = '', task_entry: Any = '', reqVars: Any = '') -> None:
     """
     Process one tracer-transport time step in theta coordinates and save output.
 
@@ -228,53 +228,45 @@ def mainCalcs(tomlConfig: dict, count: int, pathsAndTime: Any = '', reqVarsWithT
     ----------
     tomlConfig : dict
         Configuration dict.
-    count : int
-        Index into *pathsAndTime* or *pathDictionary* for this worker.
-    pathsAndTime : pd.DataFrame or ``''``
-        Combined met+tracer file paths; used when ``tracerDataInMetFiles`` is
-        True.
+    task_path : tuple (timestamp, path) or ``''``
+        Pre-extracted (timestamp, file path) for this task; used when
+        ``tracerDataInMetFiles`` is True.
     reqVarsWithTracers : list of str or ``''``
-        Variable names including tracers; used with *pathsAndTime*.
-    pathDictionary : dict or ``''``
-        Mapping of tracer timestamps to ``[tracer_path, met_paths, weights]``;
-        used when met and tracer files are separate.
+        Variable names including tracers; used with *task_path*.
+    task_entry : tuple (timestamp, tracer_path, met_paths, weights) or ``''``
+        Pre-extracted entry for this task; used when met and tracer files are
+        separate.
     reqVars : list of str or ``''``
-        Met-only variable names; used with *pathDictionary*.
+        Met-only variable names; used with *task_entry*.
     """
     try:
-        if tomlConfig['tracerDataInMetFiles']: # if met and tracer data are in the same files.
-            timeStamp = list(pathsAndTime.index)[count]
-            
-            dataset = readAndTransposeData(pathsAndTime['Path'].iloc[count], reqVarsWithTracers, tomlConfig['vertDim'],
+        if tomlConfig['tracerDataInMetFiles']:
+            timeStamp, filePath = task_path
+
+            dataset = readAndTransposeData(filePath, reqVarsWithTracers, tomlConfig['vertDim'],
                                         tomlConfig['latDim'], tomlConfig['lonDim'],
                                         timeDimName=tomlConfig.get('timeDim', ''),
                                         fillValues=tomlConfig.get('fillValues', []))
             interpolatedDataset = interpolateToTheta(dataset, reqVarsWithTracers, tomlConfig)
-            
-        else:
-            timeStamp = list(pathDictionary.keys())[count]
 
-            tracerFilePath = pathDictionary[list(pathDictionary.keys())[count]][0]
-            metFilePaths = pathDictionary[list(pathDictionary.keys())[count]][1]
-            metFilesWeights = pathDictionary[list(pathDictionary.keys())[count]][2]
+        else:
+            timeStamp, tracerFilePath, metFilePaths, metFilesWeights = task_entry
 
             tracerDataset = readAndTransposeData(tracerFilePath, tomlConfig['tracerNames'],
                                                 tomlConfig['tracerVertDim'], tomlConfig['tracerLatDim'], tomlConfig['tracerLonDim'],
                                                 timeDimName=tomlConfig.get('tracerTimeDim', ''),
                                                 fillValues=tomlConfig.get('fillValues', []))
-            
+
             metDataset = readDataAndGetWeightedAverage(metFilePaths, metFilesWeights, reqVars,
                                                     tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'],
                                                     fillValues=tomlConfig.get('fillValues', []))
 
             interpolatedDataset = interpolateToThetaAndCombineData(tracerDataset, metDataset, reqVars, tomlConfig)
 
-
-
         interpolatedDataset = binData(interpolatedDataset, tomlConfig['binningLat'], tomlConfig['binningLon'])
         dataToSave, lats, thetaLevels = tracerTransport(interpolatedDataset, tomlConfig)
         saveOut(dataToSave, tomlConfig, timeStamp, lats, thetaLevels)
-        
+
         global counter
         # += operation is not atomic, so get a lock:
         with counter.get_lock():
@@ -282,7 +274,7 @@ def mainCalcs(tomlConfig: dict, count: int, pathsAndTime: Any = '', reqVarsWithT
 
     except Exception as e:
         try:
-            path_ctx = pathsAndTime['Path'].iloc[count] if hasattr(pathsAndTime, 'iloc') else list(pathDictionary.keys())[count]
+            path_ctx = task_path[1] if task_path != '' else task_entry[1]
         except Exception:
             path_ctx = '?'
         raise type(e)(f"[path: {path_ctx}] {str(e)}").with_traceback(e.__traceback__)

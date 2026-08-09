@@ -43,38 +43,39 @@ def extractTimeFromFileNames(filesPaths: list, timeInfoInFileNames: str) -> pd.D
                 "At least position of year (YYYY or YY) must be provided in config.")
         sys.exit(1)
 
-    timeStrings = {'monthString': 'MM', 'dayString': 'DD', 'hourString': 'HH', 'minuteString': 'mm', 'secondString': 'ss'}
-    timeInfo = {}
+    timeTokens = {'monthString': 'MM', 'dayString': 'DD', 'hourString': 'HH', 'minuteString': 'mm', 'secondString': 'ss'}
+    n = len(filesPaths)
 
     if timeInfoInFileNames.startswith('*'):
-        yearInfoStart = len(timeInfoInFileNames) - timeInfoInFileNames.find(yearString) - len(yearString)
-        yearInfo = [str(file)[-(yearInfoStart + len(yearString)):-yearInfoStart] for file in filesPaths]
-        if yearString == 'YY':
-            yearInfo = ['20' + year if int(year[0:2]) < 50 else '19' + year for year in yearInfo]
+        names = pd.Series([str(f) for f in filesPaths])
 
-        for string in timeStrings.keys():
-            if timeStrings[string] in timeInfoInFileNames:
-                timeInfoStart = len(timeInfoInFileNames) - timeInfoInFileNames.find(timeStrings[string]) - len(timeStrings[string])
-                timeInfo[string] = [str(file)[-(timeInfoStart + len(timeStrings[string])):-timeInfoStart] for file in filesPaths]
-            else:
-                timeInfo[string] = ['00'] * len(filesPaths)
+        def _extract(token: str) -> pd.Series:
+            token_len = len(token)
+            offset = len(timeInfoInFileNames) - timeInfoInFileNames.find(token) - token_len
+            return names.str.slice(-(offset + token_len), -offset if offset > 0 else None)
 
     else:
-        yearInfoStart = timeInfoInFileNames.find(yearString)
-        yearInfo = [str(file.name)[yearInfoStart: (yearInfoStart + len(yearString))] for file in filesPaths]
-        if yearString == 'YY':
-            yearInfo = ['20' + year if int(year[0:2]) < 50 else '19' + year for year in yearInfo]
+        names = pd.Series([f.name for f in filesPaths])
 
-        for string in timeStrings.keys():
-            if timeStrings[string] in timeInfoInFileNames:
-                timeInfoStart = timeInfoInFileNames.find(timeStrings[string])
-                timeInfo[string] = [str(file.name)[timeInfoStart: (timeInfoStart + len(timeStrings[string]))] for file in filesPaths]
-            else:
-                timeInfo[string] = ['00'] * len(filesPaths)
+        def _extract(token: str) -> pd.Series:
+            start = timeInfoInFileNames.find(token)
+            return names.str.slice(start, start + len(token))
 
-    dateAndtime = pd.to_datetime([yearInfo[i] + '-' + timeInfo['monthString'][i] + '-' + timeInfo['dayString'][i] + ' ' +
-                                    timeInfo['hourString'][i] + ':' +  timeInfo['minuteString'][i] + ':' +
-                                    timeInfo['secondString'][i] for i in range(len(filesPaths))], format='%Y-%m-%d %H:%M:%S')
+    yearInfo = _extract(yearString)
+    if yearString == 'YY':
+        mask = yearInfo.astype(int) < 50
+        yearInfo = mask.map({True: '20', False: '19'}) + yearInfo
+
+    timeInfo = {
+        key: _extract(token) if token in timeInfoInFileNames else pd.Series(['00'] * n)
+        for key, token in timeTokens.items()
+    }
+
+    dateAndtime = pd.to_datetime(
+        yearInfo + '-' + timeInfo['monthString'] + '-' + timeInfo['dayString'] + ' '
+        + timeInfo['hourString'] + ':' + timeInfo['minuteString'] + ':' + timeInfo['secondString'],
+        format='%Y-%m-%d %H:%M:%S'
+    )
 
     return dateAndtime
 
@@ -276,7 +277,7 @@ def collectFileNamesTTransport(inputDir: str, fileNames: str, timeInfoInFileName
     timeDiffs = filesPathAndTime.index.to_series().diff().dropna()
     expectedFrequency = timeDiffs.mode()[0]
     completeRange = pd.date_range(start=filesPathAndTime.index.min(), end=filesPathAndTime.index.max(), freq=expectedFrequency)
-    missingTimeStamps = [ts for ts in completeRange if ts not in set(filesPathAndTime.index)]
+    missingTimeStamps = list(completeRange.difference(filesPathAndTime.index))
 
     if outDirSkip == 1:
         filesPaths_inOutDir = list(Path(outputDir).rglob(f'{outPrefix}*.nc'))

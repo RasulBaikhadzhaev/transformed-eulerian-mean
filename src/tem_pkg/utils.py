@@ -96,6 +96,30 @@ def format_seconds(seconds: float) -> str:
     return " ".join(parts) if parts else "0s"
 
 
+def init_spinner(stop_event: Any, timeStart: float) -> None:
+    """
+    Print an animated 'Initialisation...' label until *stop_event* is set.
+
+    Intended to run in a daemon thread while file collection and path-matching
+    are in progress (before the multiprocessing pool starts).
+
+    Parameters
+    ----------
+    stop_event : threading.Event
+        Set this event from the main thread to stop the spinner.
+    timeStart : float
+        Start time from ``time.time()``, used to compute elapsed time.
+    """
+    spinner = ['   ', '.  ', '.. ', '...']
+    spin_idx = 0
+    while not stop_event.is_set():
+        elapsed_str = format_seconds(time.time() - timeStart)
+        sys.stdout.write(f"\rInitialisation{spinner[spin_idx % 4]}| Time elapsed: {elapsed_str}\033[K")
+        sys.stdout.flush()
+        spin_idx += 1
+        time.sleep(0.5)
+
+
 def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
     """
     Print a CLI progress bar to stdout, updating every second until done.
@@ -113,22 +137,26 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
     timeStart : float
         Start time from ``time.time()``, used to compute elapsed time.
     """
+    dots = ['   ', '.  ', '.. ', '...']
+    dot_idx = 0
     while True:
         currentN = counter.value
         elapsed_str = format_seconds(time.time() - timeStart)
+        pct = f"\033[1m{(currentN/totalN)*100:4.2f}%\033[0m"
 
         sys.stdout.write(
-            f"\rFiles processed: {currentN}/{totalN} ({(currentN/totalN)*100:4.2f}%) | "
+            f"\rProcessing{dots[dot_idx % 4]}| File {currentN}/{totalN} ({pct}) | "
             f"Time elapsed: {elapsed_str}\033[K"
         )
         sys.stdout.flush()
+        dot_idx += 1
 
         if currentN >= totalN:
             sys.stdout.write("\n")
             sys.stdout.flush()
             break
 
-        time.sleep(1)
+        time.sleep(0.5)
 
 
 def binData(dataset: Any, binningLat: int, binningLon: int) -> Any:

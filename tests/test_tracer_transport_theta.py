@@ -307,7 +307,8 @@ def _theta_maincalcs_config(output_dir):
 def _run_theta_maincalcs(pathsAndTime, config, req_vars_with_tracers):
     counter_val = multiprocessing.Value('i', 0)
     init_worker(counter_val)
-    mainCalcs(config, 0, pathsAndTime=pathsAndTime, reqVarsWithTracers=req_vars_with_tracers)
+    ts = pathsAndTime.index[0]
+    mainCalcs(config, task_path=(ts, pathsAndTime['Path'].iloc[0]), reqVarsWithTracers=req_vars_with_tracers)
 
 
 def test_maincalcs_tracer_in_met_files_produces_output(tmp_path):
@@ -413,7 +414,9 @@ def test_maincalcs_separate_tracer_met_files_produces_output(tmp_path):
     counter_val = multiprocessing.Value('i', 0)
     init_worker(counter_val)
     req_vars = ['V', 'THETA_DOT', 'PRESS']
-    mainCalcs(config, 0, pathDictionary=path_dict, reqVars=req_vars)
+    ts_key = list(path_dict.keys())[0]
+    entry = (ts_key, *path_dict[ts_key])
+    mainCalcs(config, task_entry=entry, reqVars=req_vars)
 
     produced = list(output_dir.glob('*.nc'))
     assert len(produced) == 1, (
