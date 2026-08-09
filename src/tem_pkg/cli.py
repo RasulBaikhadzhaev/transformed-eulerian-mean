@@ -112,7 +112,7 @@ def run_residual() -> None:
 
     spinnerStop.set()
     spinnerThread.join()
-    sys.stdout.write("\n")
+    sys.stdout.write("\r\033[K")
     sys.stdout.flush()
 
     reporter = threading.Thread(
@@ -122,17 +122,18 @@ def run_residual() -> None:
     reporter.daemon = True # Allows the program to exit if the thread is stuck
     reporter.start()
 
-    try: 
+    try:
         with multiprocessing.Pool(
-            processes=config['processNumber'], 
-            initializer=init_worker, 
-            initargs=(sharedCounter, )
+            processes=config['processNumber'],
+            initializer=init_worker,
+            initargs=(sharedCounter, ),
+            maxtasksperchild=config['processNumber'] * 10,
             ) as p:
-            
-            p.starmap(mainCalcs, zip(pathsAndTimeChunked.values(), 
-                                    repeat(reqVars), 
-                                    repeat(config), 
-                                    repeat(saveInterpolatedZonalMeanVars), 
+
+            p.starmap(mainCalcs, zip(pathsAndTimeChunked.values(),
+                                    repeat(reqVars),
+                                    repeat(config),
+                                    repeat(saveInterpolatedZonalMeanVars),
                                     repeat(saveZonalMeanVars)))
     except Exception as e:
         print(f"\nAn error occurred: {repr(e)}")
@@ -256,7 +257,7 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
 
     spinnerStop.set()
     spinnerThread.join()
-    sys.stdout.write("\n")
+    sys.stdout.write("\r\033[K")
     sys.stdout.flush()
 
     reporter = threading.Thread(
@@ -266,23 +267,29 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
     reporter.daemon = True # Allows the program to exit if the thread is stuck
     reporter.start()
 
-    try: 
+    try:
         if tomlConfig['tracerDataInMetFiles']:
+            # Pre-extract per-task path so the full DataFrame is not pickled for every task
+            task_paths = [(ts, pathsAndTime['Path'].iloc[i]) for i, ts in enumerate(pathsAndTime.index)]
             with multiprocessing.Pool(
-                processes=tomlConfig['processNumber'], 
-                initializer=init_worker, 
-                initargs=(sharedCounter, )
+                processes=tomlConfig['processNumber'],
+                initializer=init_worker,
+                initargs=(sharedCounter, ),
+                maxtasksperchild=tomlConfig['processNumber'] * 10,
                 ) as p:
-                p.starmap(mainCalcs, zip(repeat(tomlConfig), numbers,
-                                    repeat(pathsAndTime), repeat(reqVars), repeat(''), repeat(''))) # reqVars includes tracers
+                p.starmap(mainCalcs, zip(repeat(tomlConfig), task_paths,
+                                    repeat(reqVars), repeat(''), repeat('')))
         else:
+            # Pre-extract per-task entries so the full dict is not pickled for every task
+            task_entries = [(ts, v[0], v[1], v[2]) for ts, v in pathDictionary.items()]
             with multiprocessing.Pool(
-                processes=tomlConfig['processNumber'], 
-                initializer=init_worker, 
-                initargs=(sharedCounter, )
+                processes=tomlConfig['processNumber'],
+                initializer=init_worker,
+                initargs=(sharedCounter, ),
+                maxtasksperchild=tomlConfig['processNumber'] * 10,
                 ) as p:
-                p.starmap(mainCalcs, zip(repeat(tomlConfig), numbers, 
-                                    repeat(''), repeat(''), repeat(pathDictionary), repeat(reqVars))) # no tracer names in reqVars
+                p.starmap(mainCalcs, zip(repeat(tomlConfig), repeat(''), repeat(''),
+                                    task_entries, repeat(reqVars)))
     
     except Exception as e:
         print(f"\nAn error occurred: {repr(e)}")

@@ -110,14 +110,14 @@ def init_spinner(stop_event: Any, timeStart: float) -> None:
     timeStart : float
         Start time from ``time.time()``, used to compute elapsed time.
     """
-    spinner = ['.  ', '.. ', '...']
+    spinner = ['   ', '.  ', '.. ', '...']
     spin_idx = 0
     while not stop_event.is_set():
         elapsed_str = format_seconds(time.time() - timeStart)
-        sys.stdout.write(f"\rInitialisation{spinner[spin_idx % 3]} | Time elapsed: {elapsed_str}\033[K")
+        sys.stdout.write(f"\rInitialisation{spinner[spin_idx % 4]}| Time elapsed: {elapsed_str}\033[K")
         sys.stdout.flush()
         spin_idx += 1
-        time.sleep(1/3)
+        time.sleep(0.5)
 
 
 def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
@@ -137,7 +137,7 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
     timeStart : float
         Start time from ``time.time()``, used to compute elapsed time.
     """
-    dots = ['.  ', '.. ', '...']
+    dots = ['   ', '.  ', '.. ', '...']
     dot_idx = 0
     while True:
         currentN = counter.value
@@ -145,7 +145,7 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
         pct = f"\033[1m{(currentN/totalN)*100:4.2f}%\033[0m"
 
         sys.stdout.write(
-            f"\rProcessing{dots[dot_idx % 3]} | {currentN}/{totalN} files {pct} | "
+            f"\rProcessing{dots[dot_idx % 4]}| File {currentN}/{totalN} ({pct}) | "
             f"Time elapsed: {elapsed_str}\033[K"
         )
         sys.stdout.flush()
@@ -156,7 +156,7 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
             sys.stdout.flush()
             break
 
-        time.sleep(1/3)
+        time.sleep(0.5)
 
 
 def binData(dataset: Any, binningLat: int, binningLon: int) -> Any:
