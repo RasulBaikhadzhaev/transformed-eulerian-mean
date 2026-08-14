@@ -7,7 +7,7 @@ Groups:
   - collectFileNames: frequency-inference edge cases, outDirSkip
   - collectFileNamesTTransport: basic path, outDirSkip
   - chunkMetFilesPathsForBinning: auto same-freq no-overlap, int N, invalid
-  - saveOut: no-Fourier, specific waves, 'all' waves, filename encoding
+  - saveOut: no-Fourier, specific waves, 'all' waves, filename encoding, alt/theta vert coord
 """
 
 from pathlib import Path
@@ -18,6 +18,8 @@ import pytest
 import xarray as xr
 
 from tem_pkg.file_io import (
+    _ALT_VERT_COORD,
+    _THETA_VERT_COORD,
     chunkMetFilesPathsForBinning,
     collectFileNames,
     collectFileNamesTTransport,
@@ -440,3 +442,24 @@ def test_saveout_filename_encodes_timestamp(tmp_path, out_cfg):
     saveOut(_scalar_data(), out_cfg, pd.Timestamp("2020-06-15 18:00"), lats, thetas)
     names = [f.name for f in tmp_path.glob("*.nc")]
     assert any("2020_06_15_18_00" in n for n in names)
+
+
+def test_saveout_alt_vert_coord(tmp_path, out_cfg):
+    lats = np.linspace(-60, 60, 5)
+    alts = np.array([0.0, 737.5, 1137.6, 2000.0])
+    saveOut(_scalar_data(), out_cfg, pd.Timestamp("2020-01-01"), lats, alts, _ALT_VERT_COORD)
+    with xr.open_dataset(list(tmp_path.glob("*.nc"))[0]) as ds:
+        assert "alt" in ds.coords
+        assert "theta" not in ds.coords
+        assert ds.alt.attrs["long_name"] == "Log-pressure altitude"
+        assert ds.alt.attrs["units"] == "m"
+        assert ds["chi_bar"].dims[0] == "alt"
+
+
+def test_saveout_default_vert_coord_is_theta(tmp_path, out_cfg):
+    lats   = np.linspace(-60, 60, 5)
+    thetas = np.array([300.0, 350.0, 400.0, 450.0])
+    saveOut(_scalar_data(), out_cfg, pd.Timestamp("2020-01-01"), lats, thetas)
+    with xr.open_dataset(list(tmp_path.glob("*.nc"))[0]) as ds:
+        assert "theta" in ds.coords
+        assert ds.theta.attrs["units"] == "K"
