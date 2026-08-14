@@ -516,7 +516,12 @@ def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, r
     return weightedMeanDataset
 
 
-def saveOut(dataToSave: dict, tomlConfig: dict, timeStamp: Any, lats: np.ndarray, thetaLevels: Any) -> None:
+_THETA_VERT_COORD = {'name': 'theta', 'long_name': 'Potential temperature levels', 'units': 'K'}
+_ALT_VERT_COORD   = {'name': 'alt',   'long_name': 'Log-pressure altitude',        'units': 'm'}
+
+
+def saveOut(dataToSave: dict, tomlConfig: dict, timeStamp: Any, lats: np.ndarray,
+            vertLevels: Any, vertCoord: dict = _THETA_VERT_COORD) -> None:
     """
     Package tracer-transport results into an xarray Dataset and write to NetCDF.
 
@@ -533,8 +538,11 @@ def saveOut(dataToSave: dict, tomlConfig: dict, timeStamp: Any, lats: np.ndarray
         Timestamp for the output file name and the ``time`` coordinate.
     lats : np.ndarray
         Latitude coordinate values in degrees.
-    thetaLevels : array-like
-        Potential temperature levels (K) used as the vertical coordinate.
+    vertLevels : array-like
+        Vertical coordinate values.
+    vertCoord : dict, optional
+        Metadata for the vertical coordinate: ``{'name', 'long_name', 'units'}``.
+        Defaults to potential-temperature levels (theta, K).
     """
     fnout = tomlConfig['outputDirectory'] + '/' + tomlConfig['outPrefix'] + str(timeStamp)[:-3].replace('-', '_').replace(' ', '_').replace(':', '_') + '.nc'
 
@@ -545,16 +553,17 @@ def saveOut(dataToSave: dict, tomlConfig: dict, timeStamp: Any, lats: np.ndarray
     else:
         FourierToSave = False
 
+    vertName = vertCoord['name']
     dsOut = xr.Dataset()
 
     for variable in dataToSave.keys():
-        dsOut[variable] = (('theta', 'lat'), np.single(dataToSave[variable][0]))
+        dsOut[variable] = ((vertName, 'lat'), np.single(dataToSave[variable][0]))
         getattr(dsOut, variable).attrs['long_name'] = dataToSave[variable][1]
         getattr(dsOut, variable).attrs['units'] = dataToSave[variable][2]
 
     if FourierToSave:
         for variable in Fourier.keys():
-            dsOut[variable] = (('theta', 'lat', 'waveN'),
+            dsOut[variable] = ((vertName, 'lat', 'waveN'),
                                np.single(Fourier[variable][0]))
             getattr(dsOut, variable).attrs['long_name'] = Fourier[variable][1]
             getattr(dsOut, variable).attrs['units'] = Fourier[variable][2]
@@ -567,9 +576,9 @@ def saveOut(dataToSave: dict, tomlConfig: dict, timeStamp: Any, lats: np.ndarray
         dsOut.coords['waveN'] = waveNumbers
         dsOut.waveN.attrs['long_name'] = 'wave number'
 
-    dsOut.coords['theta'] = thetaLevels
-    dsOut.theta.attrs['long_name'] = 'Potential temperature levels'
-    dsOut.theta.attrs['units'] = 'K'
+    dsOut.coords[vertName] = vertLevels
+    getattr(dsOut, vertName).attrs['long_name'] = vertCoord['long_name']
+    getattr(dsOut, vertName).attrs['units'] = vertCoord['units']
     dsOut.coords['lat'] = lats
     dsOut.lat.attrs['long_name'] = 'latitude'
     dsOut.lat.attrs['units'] = 'degree_N'

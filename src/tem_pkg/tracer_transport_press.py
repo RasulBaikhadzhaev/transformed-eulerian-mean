@@ -8,7 +8,7 @@ from metpy.units import units
 from scipy.integrate import cumulative_trapezoid
 
 from .constants import P0, Cp, R, Ts, gEarth, rEarth
-from .file_io import readAndTransposeData, readDataAndGetWeightedAverage, saveOut
+from .file_io import _ALT_VERT_COORD, readAndTransposeData, readDataAndGetWeightedAverage, saveOut
 from .interpolation import alt2press, interpolateToLogPressure, interpolateToPressureAndCombineData
 from .utils import addRatioUnits, apply_waves_banding, binData, nanGradient
 
@@ -302,8 +302,8 @@ def mainCalcs(tomlConfig: dict, task_path: Any = '', reqVarsWithTracers: Any = '
             interpolatedDataset = interpolateToPressureAndCombineData(tracerDataset, metDataset, reqVars, tomlConfig)
 
         interpolatedDataset = binData(interpolatedDataset, tomlConfig['binningLat'], tomlConfig['binningLon'])
-        dataToSave, lats, thetaLevels = tracerTransport(interpolatedDataset, tomlConfig)
-        saveOut(dataToSave, tomlConfig, timeStamp, lats, thetaLevels)
+        dataToSave, lats, altLevels = tracerTransport(interpolatedDataset, tomlConfig)
+        saveOut(dataToSave, tomlConfig, timeStamp, lats, altLevels, _ALT_VERT_COORD)
 
         global counter
         # += operation is not atomic, so get a lock:
