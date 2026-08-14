@@ -8,7 +8,7 @@ from metpy.units import units
 from scipy.integrate import cumulative_trapezoid
 
 from .constants import P0, Cp, R, Ts, gEarth, rEarth
-from .file_io import readAndTransposeData, readDataAndGetWeightedAverage, saveOut, _ALT_VERT_COORD
+from .file_io import _ALT_VERT_COORD, readAndTransposeData, readDataAndGetWeightedAverage, saveOut
 from .interpolation import alt2press, interpolateToLogPressure, interpolateToPressureAndCombineData
 from .utils import addRatioUnits, apply_waves_banding, binData, nanGradient
 

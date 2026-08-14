@@ -49,6 +49,8 @@ lint-fix = "ruff check src --fix"
 format = "ruff format src"
 # Run tests with coverage report
 coverage = "pytest tests/ --cov=src/tem_pkg --cov-report=term-missing"
+# Run lint then full test suite
+ci = { depends-on = ["lint", "coverage"] }
 
 [tool.pixi.dependencies]
 xarray = ">=2025.12.0,<2026"
