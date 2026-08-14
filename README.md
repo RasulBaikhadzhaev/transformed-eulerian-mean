@@ -458,7 +458,25 @@ The package includes unit tests, integration tests, and regression tests against
 pixi run coverage
 ```
 
+To run lint and tests together (as in CI):
+
+```bash
+pixi run ci
+```
+
 Sample input files (ERA5-like and CLaMS-like NetCDF) and baseline reference output are in `tests/data/`.
+
+---
+
+## Planned work
+
+### Separation of stationary and transient waves
+
+The Fourier decomposition currently computes waves from instantaneous (daily or sub-daily) fields. A planned extension will separate stationary and transient wave contributions by additionally computing the decomposition on monthly-mean fields. Waves present in the monthly mean represent the stationary component; the difference between the instantaneous and monthly-mean wave fields gives the transient component. This will allow users to attribute tracer transport tendencies and EP flux to stationary versus transient eddies without any additional input data.
+
+### RAM usage optimisation
+
+For large datasets the peak memory footprint during processing can be significant. Planned work includes performing intermediate calculations in 32-bit floating-point precision where the loss of precision is acceptable, and explicitly releasing arrays from memory as soon as they are no longer needed. Together these changes should substantially reduce per-worker memory usage and allow larger grids or longer time series to be processed within typical memory budgets.
 
 ---
 
