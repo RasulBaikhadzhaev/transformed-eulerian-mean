@@ -12,7 +12,7 @@ The package provides three calculators:
 
 | Calculator | Command | What it computes |
 |---|---|---|
-| Residual circulation | `residual` | Residual mean flow (V\*, W\*), Eliassen–Palm flux and its divergence, mass stream function |
+| Residual circulation | `residual` | Residual mean flow ($\bar{v}^*$, $\bar{w}^*$), Eliassen–Palm flux and its divergence, mass stream function |
 | Tracer transport (pressure coords) | `transport-press` | Zonal-mean tracer budget: residual advection, eddy mixing tendencies, eddy flux vectors |
 | Tracer transport (theta coords) | `transport-theta` | Same as above but in isentropic (potential temperature) coordinates |
 
@@ -37,6 +37,22 @@ pixi install
 
 ---
 
+## Sample data and quick verification
+
+The repository includes low-resolution sample input files (ERA5-like and CLaMS-like NetCDF) in `tests/data/sample_input/`. These are intended for testing and verification only — the spatial and temporal resolution is too coarse for scientific use.
+
+To generate sample output using the shipped config files:
+
+```bash
+pixi run residual          config/residualCirc_config.toml
+pixi run transport-press   config/tracerTransportPress_config.toml
+pixi run transport-theta   config/tracerTransportTheta_config.toml
+```
+
+Output is written to `tests/data/sample_output/residual_circulation/`, `tests/data/sample_output/tTransport_press/`, and `tests/data/sample_output/tTransport_theta/` respectively.
+
+---
+
 ## Scientific background
 
 TEM diagnostics follow the Andrews and McIntyre (1976) and Andrews et al. (1987) formalism. The core equations implemented by this package are summarised below.
@@ -53,7 +69,7 @@ where $H = 7$ km is the scale height and $p_s = 1000$ hPa is the reference press
 
 The residual mean meridional and vertical velocities are (Andrews et al., 1987):
 
-$$V^* = \bar{v} - \frac{1}{\rho_0} \frac{\partial}{\partial z}\!\left(\rho_0 \frac{\overline{v'\theta'}}{\bar{\theta}_z}\right), \qquad W^* = \bar{w} + \frac{1}{a\cos\phi} \frac{\partial}{\partial \phi}\!\left(\cos\phi\, \frac{\overline{v'\theta'}}{\bar{\theta}_z}\right)$$
+$$\bar{v}^* = \bar{v} - \rho_0^{-1} \partial_z\!\left(\rho_0 \frac{\overline{v'\theta'}}{\partial_z\bar{\theta}}\right), \qquad \bar{w}^* = \bar{w} + \frac{1}{a\cos\phi} \partial_\phi\!\left(\cos\phi\, \frac{\overline{v'\theta'}}{\partial_z\bar{\theta}}\right)$$
 
 where $\rho_0$ is the reference density, $a$ is Earth's radius, $\phi$ is latitude, $\theta$ is potential temperature, and primes denote deviations from the zonal mean.
 
@@ -61,41 +77,41 @@ where $\rho_0$ is the reference density, $a$ is Earth's radius, $\phi$ is latitu
 
 The EP flux quantifies the meridional propagation of wave activity:
 
-$$F^{(\phi)} = \rho_0 a \cos\phi \left(\bar{u}_z \frac{\overline{v'\theta'}}{\bar{\theta}_z} - \overline{v'u'}\right)$$
+$$F^{(\phi)} = \rho_0 a \cos\phi \left(\frac{\partial_z\bar{u}}{\partial_z\bar{\theta}}\,\overline{v'\theta'} - \overline{v'u'}\right)$$
 
-$$F^{(z)} = \rho_0 a \cos\phi \left[\left(f - \frac{1}{a\cos\phi}(\bar{u}\cos\phi)_\phi\right) \frac{\overline{v'\theta'}}{\bar{\theta}_z} - \overline{w'u'}\right]$$
+$$F^{(z)} = \rho_0 a \cos\phi \left\{\left[f - \frac{\partial_\phi(\bar{u}\cos\phi)}{a\cos\phi}\right] \frac{\overline{v'\theta'}}{\partial_z\bar{\theta}} - \overline{w'u'}\right\}$$
 
-Its divergence $\nabla \cdot \mathbf{F}$ is the wave forcing on the zonal mean flow and is saved in the output alongside the individual components.
+Its divergence $\nabla \cdot F$ is the wave forcing on the zonal mean flow and is saved in the output alongside the individual components.
 
 ### Residual mass stream function
 
-The `residual` and `transport-press` calculators compute the TEM residual mass stream function by integrating V* downward from the model top:
+The `residual` and `transport-press` calculators compute the TEM residual mass stream function by integrating $\bar{v}^*$ downward from the model top:
 
-$$\Psi^*(\phi, z) = -\cos\phi \int_z^\infty \rho_0\, v^*(\phi, z')\, dz'$$
+$$\psi^*(\phi, z) = -\cos\phi \int_z^\infty \rho_0\, \bar{v}^*(\phi, z')\, \mathrm{d}z'$$
 
 ### Tracer transport in log-pressure coordinates
 
 The zonal-mean tracer continuity equation within the TEM framework is (Andrews et al., 1987, Eq. 9.4.13):
 
-$$\partial_t \bar{\chi} = \bar{S} - \frac{v^*}{a} \partial_\phi \bar{\chi} - w^* \partial_z \bar{\chi} + \rho_0^{-1} \nabla \cdot \mathbf{M}$$
+$$\partial_t \bar{\chi} = \bar{S} - \frac{\bar{v}^*}{a} \partial_\phi \bar{\chi} - \bar{w}^* \partial_z \bar{\chi} + \rho_0^{-1} \nabla \cdot M$$
 
-where $\chi$ is the tracer mixing ratio, $\bar{S}$ represents chemical sources and sinks, and $\mathbf{M}$ is the eddy flux vector with components:
+where $\chi$ is the tracer mixing ratio, $\bar{S}$ represents chemical sources and sinks, and $M$ is the eddy flux vector with components:
 
-$$M^{(\phi)} = -\rho_0\!\left(\overline{v'\chi'} - \overline{v'\theta'}\,\frac{\partial_z \bar{\chi}}{\partial_z \bar{\theta}}\right), \qquad M^{(z)} = -\rho_0\!\left(\overline{w'\chi'} + \overline{v'\theta'}\,\frac{\partial_\phi \bar{\chi} / a}{\partial_z \bar{\theta}}\right)$$
+$$M^{(\phi)} = -\rho_0\!\left(\overline{v'\chi'} - \overline{v'\theta'}\,\frac{\partial_z \bar{\chi}}{\partial_z \bar{\theta}}\right), \qquad M^{(z)} = -\rho_0\!\left(\overline{w'\chi'} + \overline{v'\theta'}\,\frac{\partial_\phi \bar{\chi}}{a\,\partial_z \bar{\theta}}\right)$$
 
 ### Tracer transport in isentropic coordinates
 
 When potential temperature $\theta$ is the vertical coordinate, the analogue of the residual circulation is the diabatic mean circulation:
 
-$$v^* = \langle\sigma v\rangle/\langle\sigma\rangle, \qquad Q^* = \langle\sigma Q\rangle/\langle\sigma\rangle$$
+$$\bar{v}^* = \overline{\sigma v}/\overline{\sigma}, \qquad \overline{Q^*} = \overline{\sigma Q}/\overline{\sigma}$$
 
-where $\sigma = -g^{-1}\partial_\theta p$ is the isentropic density and $Q = \dot{\theta}$ is the diabatic heating rate. The tracer transport equation in isentropic coordinates is (Andrews et al., 1987, Eq. 9.4.21):
+where $\sigma = -g^{-1}\partial_\theta p$ is the isentropic density and $Q = \mathrm{d}\theta/\mathrm{d}t$ is the diabatic heating rate. The tracer transport equation in isentropic coordinates is (Andrews et al., 1987, Eq. 9.4.21):
 
-$$\partial_t \bar{\chi} = \bar{S} - \frac{v^*}{a}\partial_\phi \bar{\chi} - Q^*\partial_\theta \bar{\chi} + \frac{1}{\bar{\sigma}}\!\left[\nabla \cdot \mathbf{M} - \partial_t\!\left(\overline{\sigma'\chi'}\right)\right]$$
+$$\partial_t \bar{\chi} = \bar{S} - \frac{\bar{v}^*}{a}\partial_\phi \bar{\chi} - \overline{Q^*}\partial_\theta \bar{\chi} + \frac{1}{\bar{\sigma}}\!\left[\nabla \cdot M - \partial_t\!\left(\overline{\sigma'\chi'}\right)\right]$$
 
 with eddy flux vector components:
 
-$$M^{(\phi)} = -\langle(\sigma v)'\chi'\rangle, \qquad M^{(\theta)} = -\langle(\sigma Q)'\chi'\rangle$$
+$$M^{(\phi)} = -\overline{(\sigma v)'\chi'}, \qquad M^{(\theta)} = -\overline{(\sigma Q)'\chi'}$$
 
 ---
 
@@ -201,7 +217,7 @@ Wavenumber 0 (the zonal mean) is always excluded. The decomposition requires ver
 
 ### Missing vertical wind (`verticalWindType = 'missing'`, residual only)
 
-If no vertical wind data is available, set `verticalWindType = 'missing'`. W* is then estimated diagnostically from V* via the residual mass stream function, and the EP flux vertical component is computed without the w′u′ term. Fourier decomposition of the EP flux requires vertical wind and is disabled automatically.
+If no vertical wind data is available, set `verticalWindType = 'missing'`. $\bar{w}^*$ is then estimated diagnostically from $\bar{v}^*$ via the residual mass stream function, and the EP flux vertical component is computed without the w′u′ term. Fourier decomposition of the EP flux requires vertical wind and is disabled automatically.
 
 ---
 
@@ -305,7 +321,7 @@ Note: `transport-press` and `transport-theta` require one NetCDF file per timest
 
 ### Mass stream function (`massSF`, transport only)
 
-Set `massSF = true` to compute and save the residual mass stream function alongside the tracer budget terms. For `transport-press` this is the log-pressure $\Psi^*$ (same formula as the `residual` calculator); for `transport-theta` it is the isentropic stream function $\Psi_\theta$, computed by integrating $\bar{v}^*$ over pressure rather than altitude.
+Set `massSF = true` to compute and save the residual mass stream function alongside the tracer budget terms. For `transport-press` this is the log-pressure $\psi^*$ (same formula as the `residual` calculator); for `transport-theta` it is the isentropic stream function $\psi_\theta$, computed by integrating $\bar{v}^*$ over pressure rather than altitude.
 
 ---
 
@@ -393,7 +409,7 @@ pixi run transport-theta --help
 
 | Variable | Description |
 |---|---|
-| `V_RES_STD`, `W_RES_STD` | Residual mean meridional and vertical circulation (V\*, W\*) |
+| `V_RES_STD`, `W_RES_STD` | Residual mean meridional and vertical circulation ($\bar{v}^*$, $\bar{w}^*$) |
 | `EPF_lat`, `EPF_vert` | Meridional and vertical components of the Eliassen–Palm flux |
 | `div_EPF_lat`, `div_EPF_vert`, `div_EPF` | EP flux divergence (components and total) |
 | `MASS_SF_RES_STD` | Mass stream function of the residual flow |
@@ -464,7 +480,7 @@ To run lint and tests together (as in CI):
 pixi run ci
 ```
 
-Sample input files (ERA5-like and CLaMS-like NetCDF) and baseline reference output are in `tests/data/`.
+Sample input files and baseline reference output are in `tests/data/`.
 
 ---
 
