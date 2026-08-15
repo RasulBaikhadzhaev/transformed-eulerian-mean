@@ -69,7 +69,7 @@ where $H = 7$ km is the scale height and $p_s = 1000$ hPa is the reference press
 
 The residual mean meridional and vertical velocities are (Andrews et al., 1987):
 
-$$\bar{v}^* = \bar{v} - \rho_0^{-1} \partial_z\left(\rho_0 \frac{\overline{v'\theta'}}{\partial_z\bar{\theta}}\right), \qquad \bar{w}^* = \bar{w} + \frac{1}{a\cos\phi} \partial_\phi\left(\cos\phi \frac{\overline{v'\theta'}}{\partial_z\bar{\theta}}\right)$$
+$$\bar{v}^\ast = \bar{v} - \rho_0^{-1} \partial_z\left(\rho_0 \frac{\overline{v'\theta'}}{\partial_z\bar{\theta}}\right), \qquad \bar{w}^\ast = \bar{w} + \frac{1}{a\cos\phi} \partial_\phi\left(\cos\phi \frac{\overline{v'\theta'}}{\partial_z\bar{\theta}}\right)$$
 
 where $\rho_0$ is the reference density, $a$ is Earth's radius, $\phi$ is latitude, $\theta$ is potential temperature, and primes denote deviations from the zonal mean.
 
@@ -87,13 +87,13 @@ Its divergence $\nabla \cdot F$ is the wave forcing on the zonal mean flow and i
 
 The `residual` and `transport-press` calculators compute the TEM residual mass stream function by integrating $\bar{v}^*$ downward from the model top:
 
-$$\psi^{*}(\phi, z) = -\cos\phi \int_z^\infty \rho_0 \bar{v}^{*}(\phi, z') \mathrm{d}z'$$
+$$\psi^\ast(\phi, z) = -\cos\phi \int_z^\infty \rho_0 \bar{v}^\ast(\phi, z') \mathrm{d}z'$$
 
 ### Tracer transport in log-pressure coordinates
 
 The zonal-mean tracer continuity equation within the TEM framework is (Andrews et al., 1987, Eq. 9.4.13):
 
-$$\partial_t \bar{\chi} = \bar{S} - \frac{\bar{v}^{*}}{a} \partial_\phi \bar{\chi} - \bar{w}^{*} \partial_z \bar{\chi} + \rho_0^{-1} \nabla \cdot M$$
+$$\partial_t \bar{\chi} = \bar{S} - \frac{\bar{v}^\ast}{a} \partial_\phi \bar{\chi} - \bar{w}^\ast \partial_z \bar{\chi} + \rho_0^{-1} \nabla \cdot M$$
 
 where $\chi$ is the tracer mixing ratio, $\bar{S}$ represents chemical sources and sinks, and $M$ is the eddy flux vector with components:
 
@@ -103,11 +103,11 @@ $$M^{(\phi)} = -\rho_0 \left(\overline{v'\chi'} - \overline{v'\theta'} \frac{\pa
 
 When potential temperature $\theta$ is the vertical coordinate, the analogue of the residual circulation is the diabatic mean circulation:
 
-$$\bar{v}^* = \overline{\sigma v}/\overline{\sigma}, \qquad \overline{Q^*} = \overline{\sigma Q}/\overline{\sigma}$$
+$$\bar{v}^\ast = \overline{\sigma v}/\overline{\sigma}, \qquad \overline{Q^\ast} = \overline{\sigma Q}/\overline{\sigma}$$
 
 where $\sigma = -g^{-1}\partial_\theta p$ is the isentropic density and $Q = \mathrm{d}\theta/\mathrm{d}t$ is the diabatic heating rate. The tracer transport equation in isentropic coordinates is (Andrews et al., 1987, Eq. 9.4.21):
 
-$$\partial_t \bar{\chi} = \bar{S} - \frac{\bar{v}^{*}}{a}\partial_\phi \bar{\chi} - \overline{Q^{*}}\partial_\theta \bar{\chi} + \frac{1}{\bar{\sigma}}\left[\nabla \cdot M - \partial_t\left(\overline{\sigma'\chi'}\right)\right]$$
+$$\partial_t \bar{\chi} = \bar{S} - \frac{\bar{v}^\ast}{a}\partial_\phi \bar{\chi} - \overline{Q^\ast}\partial_\theta \bar{\chi} + \frac{1}{\bar{\sigma}}\left[\nabla \cdot M - \partial_t\left(\overline{\sigma'\chi'}\right)\right]$$
 
 with eddy flux vector components:
 
