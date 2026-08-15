@@ -1,6 +1,6 @@
 # Transformed Eulerian Mean
 
-> **Before publishing:** CHECK EQUATIONS IN THE README SOME ARE NOT DISPLAYED PROPERLY Update the Zenodo DOI badge below and in `CITATION.cff` (ALSO AT THE END OF README IN HOW TO CITE SECTION) with the real DOI after uploading to Zenodo. Also update the title, authors, and journal details in `CITATION.cff`.
+> **Before publishing:** Update the Zenodo DOI badge below and in `CITATION.cff` (ALSO AT THE END OF README IN HOW TO CITE SECTION) with the real DOI after uploading to Zenodo. Also update the title, authors, and journal details in `CITATION.cff`.
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 
@@ -12,7 +12,7 @@ The package provides three calculators:
 
 | Calculator | Command | What it computes |
 |---|---|---|
-| Residual circulation | `residual` | Residual mean flow ($\bar{v}^*$, $\bar{w}^*$), Eliassen–Palm flux and its divergence, mass stream function |
+| Residual circulation | `residual` | Residual mean flow ($\bar{v}^\ast$, $\bar{w}^\ast$), Eliassen–Palm flux and its divergence, mass stream function |
 | Tracer transport (pressure coords) | `transport-press` | Zonal-mean tracer budget: residual advection, eddy mixing tendencies, eddy flux vectors |
 | Tracer transport (theta coords) | `transport-theta` | Same as above but in isentropic (potential temperature) coordinates |
 
@@ -85,7 +85,7 @@ Its divergence $\nabla \cdot F$ is the wave forcing on the zonal mean flow and i
 
 ### Residual mass stream function
 
-The `residual` and `transport-press` calculators compute the TEM residual mass stream function by integrating $\bar{v}^*$ downward from the model top:
+The `residual` and `transport-press` calculators compute the TEM residual mass stream function by integrating $\bar{v}^\ast$ downward from the model top:
 
 $$\psi^\ast(\phi, z) = -\cos\phi \int_z^\infty \rho_0 \bar{v}^\ast(\phi, z') \mathrm{d}z'$$
 
@@ -217,7 +217,7 @@ Wavenumber 0 (the zonal mean) is always excluded. The decomposition requires ver
 
 ### Missing vertical wind (`verticalWindType = 'missing'`, residual only)
 
-If no vertical wind data is available, set `verticalWindType = 'missing'`. $\bar{w}^*$ is then estimated diagnostically from $\bar{v}^*$ via the residual mass stream function, and the EP flux vertical component is computed without the w′u′ term. Fourier decomposition of the EP flux requires vertical wind and is disabled automatically.
+If no vertical wind data is available, set `verticalWindType = 'missing'`. $\bar{w}^\ast$ is then estimated diagnostically from $\bar{v}^\ast$ via the residual mass stream function, and the EP flux vertical component is computed without the w′u′ term. Fourier decomposition of the EP flux requires vertical wind and is disabled automatically.
 
 ---
 
@@ -321,7 +321,7 @@ Note: `transport-press` and `transport-theta` require one NetCDF file per timest
 
 ### Mass stream function (`massSF`, transport only)
 
-Set `massSF = true` to compute and save the residual mass stream function alongside the tracer budget terms. For `transport-press` this is the log-pressure $\psi^*$ (same formula as the `residual` calculator); for `transport-theta` it is the isentropic stream function $\psi_\theta$, computed by integrating $\bar{v}^*$ over pressure rather than altitude.
+Set `massSF = true` to compute and save the residual mass stream function alongside the tracer budget terms. For `transport-press` this is the log-pressure $\psi^\ast$ (same formula as the `residual` calculator); for `transport-theta` it is the isentropic stream function $\psi_\theta$, computed by integrating $\bar{v}^\ast$ over pressure rather than altitude.
 
 ---
 
@@ -409,7 +409,7 @@ pixi run transport-theta --help
 
 | Variable | Description |
 |---|---|
-| `V_RES_STD`, `W_RES_STD` | Residual mean meridional and vertical circulation ($\bar{v}^*$, $\bar{w}^*$) |
+| `V_RES_STD`, `W_RES_STD` | Residual mean meridional and vertical circulation ($\bar{v}^\ast$, $\bar{w}^\ast$) |
 | `EPF_lat`, `EPF_vert` | Meridional and vertical components of the Eliassen–Palm flux |
 | `div_EPF_lat`, `div_EPF_vert`, `div_EPF` | EP flux divergence (components and total) |
 | `MASS_SF_RES_STD` | Mass stream function of the residual flow |
@@ -500,7 +500,7 @@ For large datasets the peak memory footprint during processing can be significan
 
 If you use `tem_pkg` in published work, please cite the archived code release:
 
-> Baikhadzhaev, R. (2025). *tem_pkg: A Python package for Transformed Eulerian Mean diagnostics* (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
+> Baikhadzhaev, R. (2026). *tem_pkg: A Python package for Transformed Eulerian Mean diagnostics* (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
 
 A `CITATION.cff` file is included in the repository for reference managers that support it. Update the DOI badge and `CITATION.cff` with the real Zenodo DOI after uploading.
 
