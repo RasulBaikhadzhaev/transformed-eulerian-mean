@@ -500,7 +500,7 @@ For large datasets the peak memory footprint during processing can be significan
 
 If you use `tem_pkg` in published work, please cite the archived code release:
 
-> Baikhadzhaev, R. (2025). *tem_pkg: A Python package for Transformed Eulerian Mean diagnostics* (v0.8.0). Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
+> Baikhadzhaev, R. (2025). *tem_pkg: A Python package for Transformed Eulerian Mean diagnostics* (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
 
 A `CITATION.cff` file is included in the repository for reference managers that support it. Update the DOI badge and `CITATION.cff` with the real Zenodo DOI after uploading.
 
