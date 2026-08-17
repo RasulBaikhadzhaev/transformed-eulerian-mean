@@ -323,7 +323,7 @@ def _run_tem_and_attach_vars(tomlConfig: dict, datasetLogPress: xr.Dataset, time
     return dsOut
 
 
-def _finalize_mean(dsAccum: xr.Dataset, dsU: xr.Dataset, count: int, time1st: Any, last_instance: xr.Dataset) -> xr.Dataset:
+def _finalize_mean(dsAccum: xr.Dataset, dsU: xr.DataArray, count: int, time1st: Any, last_instance: xr.Dataset) -> xr.Dataset:
     """
     Finalize a temporal mean by dividing the accumulated sum and adding dU/dt.
 
@@ -331,8 +331,8 @@ def _finalize_mean(dsAccum: xr.Dataset, dsU: xr.Dataset, count: int, time1st: An
     ----------
     dsAccum : xr.Dataset
         Running sum of TEM output datasets.
-    dsU : xr.Dataset
-        Dataset of per-timestep U fields stacked along a ``time`` dimension,
+    dsU : xr.DataArray
+        DataArray of per-timestep U fields stacked along a ``time`` dimension,
         used to compute the zonal-wind tendency ``dU_dt``.
     count : int
         Number of time steps summed into *dsAccum*.
@@ -352,7 +352,7 @@ def _finalize_mean(dsAccum: xr.Dataset, dsU: xr.Dataset, count: int, time1st: An
     dsOut.attrs = last_instance.attrs
     for variable in dsOut.data_vars:
         dsOut[variable].attrs = last_instance[variable].attrs
-    dU_dt = np.array(dsU.U.differentiate(coord='time', datetime_unit='s').mean(dim='time'))
+    dU_dt = np.array(dsU.differentiate(coord='time', datetime_unit='s').mean(dim='time'))
     dsOut['dU_dt'] = (('alt', 'lat'), np.single(dU_dt))
     dsOut.dU_dt.attrs['long_name'] = 'acceleration of zonal wind'
     dsOut.dU_dt.attrs['units'] = str(dsOut.U.units) + ' / s'
@@ -391,7 +391,7 @@ def _build_output_filename(tomlConfig: dict, outTime: pd.Timestamp) -> str:
         return f"{prefix}_{outTime.year}_{outTime.month:02d}_{outTime.day:02d}_{outTime.hour:02d}_{outTime.minute:02d}.nc"
 
 
-def _accumulate(dsOut: xr.Dataset, dsU: xr.Dataset, dsInstance: xr.Dataset) -> tuple[xr.Dataset, xr.Dataset]:
+def _accumulate(dsOut: xr.Dataset, dsU: xr.DataArray, dsInstance: xr.Dataset) -> tuple[xr.Dataset, xr.DataArray]:
     """
     Add a single TEM result into a running sum and U-stack for temporal averaging.
 
@@ -399,18 +399,18 @@ def _accumulate(dsOut: xr.Dataset, dsU: xr.Dataset, dsInstance: xr.Dataset) -> t
     ----------
     dsOut : xr.Dataset
         Current accumulated sum.
-    dsU : xr.Dataset
+    dsU : xr.DataArray
         Current U-field stack along the ``time`` dimension.
     dsInstance : xr.Dataset
         New TEM result to add.
 
     Returns
     -------
-    tuple[xr.Dataset, xr.Dataset]
+    tuple[xr.Dataset, xr.DataArray]
         Updated (accumulated sum, U-stack).
     """
     dsU_instance = dsInstance.U.expand_dims(time=dsInstance.coords['time'])
-    dsU = xr.merge([dsU, dsU_instance], compat='override', join='outer')
+    dsU = xr.concat([dsU, dsU_instance], dim='time')
     return dsOut + dsInstance.squeeze(), dsU
 
 

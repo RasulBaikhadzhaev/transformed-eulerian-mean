@@ -692,6 +692,11 @@ def test_mainCalcs_monthly_resample(tmp_path):
     )
     assert any('monthlyMean_2000_01' in p.name for p in produced)
     assert any('monthlyMean_2000_02' in p.name for p in produced)
+    for p in produced:
+        ds = xr.open_dataset(p)
+        assert 'dU_dt' in ds, f"dU_dt missing from {p.name}"
+        assert not np.all(np.isnan(ds['dU_dt'].values)), f"dU_dt is all-NaN in {p.name}"
+        ds.close()
 
 
 # ---------------------------------------------------------------------------
@@ -763,6 +768,10 @@ def test_mainCalcs_multiple_files_temporal_mean(tmp_path):
         f"Expected 1 averaged output file, got {len(produced)}: "
         f"{[p.name for p in produced]}"
     )
+    ds = xr.open_dataset(produced[0])
+    assert 'dU_dt' in ds, "dU_dt missing from multi-file temporal mean output"
+    assert not np.all(np.isnan(ds['dU_dt'].values)), "dU_dt is all-NaN in multi-file temporal mean output"
+    ds.close()
 
 
 def test_mainCalcs_multiple_files_with_timedim(tmp_path):
