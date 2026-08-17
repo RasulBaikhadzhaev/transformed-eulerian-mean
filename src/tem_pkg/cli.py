@@ -115,26 +115,31 @@ def run_residual() -> None:
     sys.stdout.write("\r\033[K")
     sys.stdout.flush()
 
-    reporter = threading.Thread(
-            target=progress_reporter,
-            args=(sharedCounter, numOfFiles, timeStart)
-        )
-    reporter.daemon = True # Allows the program to exit if the thread is stuck
-    reporter.start()
+    if str(config['outputTemporalMean']).lower() in ['monthly', 'month', 'daily', 'day']:
+        maxtasksperchild = 1
+    else:
+        maxtasksperchild = 10
 
     try:
         with multiprocessing.Pool(
             processes=config['processNumber'],
             initializer=init_worker,
             initargs=(sharedCounter, ),
-            maxtasksperchild=config['processNumber'] * 10,
+            maxtasksperchild=maxtasksperchild,
             ) as p:
+
+            reporter = threading.Thread(
+                target=progress_reporter,
+                args=(sharedCounter, numOfFiles, timeStart, p)
+            )
+            reporter.daemon = True
+            reporter.start()
 
             p.starmap(mainCalcs, zip(pathsAndTimeChunked.values(),
                                     repeat(reqVars),
                                     repeat(config),
                                     repeat(saveInterpolatedZonalMeanVars),
-                                    repeat(saveZonalMeanVars)))
+                                    repeat(saveZonalMeanVars)), chunksize=1)
     except Exception as e:
         print(f"\nAn error occurred: {repr(e)}")
         sys.exit(1)
@@ -258,13 +263,6 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
     sys.stdout.write("\r\033[K")
     sys.stdout.flush()
 
-    reporter = threading.Thread(
-            target=progress_reporter,
-            args=(sharedCounter, numOfFiles, timeStart)
-        )
-    reporter.daemon = True # Allows the program to exit if the thread is stuck
-    reporter.start()
-
     try:
         if tomlConfig['tracerDataInMetFiles']:
             # Pre-extract per-task path so the full DataFrame is not pickled for every task
@@ -273,10 +271,16 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
                 processes=tomlConfig['processNumber'],
                 initializer=init_worker,
                 initargs=(sharedCounter, ),
-                maxtasksperchild=tomlConfig['processNumber'] * 10,
+                maxtasksperchild=10,
                 ) as p:
+                reporter = threading.Thread(
+                    target=progress_reporter,
+                    args=(sharedCounter, numOfFiles, timeStart, p)
+                )
+                reporter.daemon = True
+                reporter.start()
                 p.starmap(mainCalcs, zip(repeat(tomlConfig), task_paths,
-                                    repeat(reqVars), repeat(''), repeat('')))
+                                    repeat(reqVars), repeat(''), repeat('')), chunksize=1)
         else:
             # Pre-extract per-task entries so the full dict is not pickled for every task
             task_entries = [(ts, v[0], v[1], v[2]) for ts, v in pathDictionary.items()]
@@ -284,11 +288,17 @@ def run_tracer_transport(mainCalcs: Callable, init_worker: Callable, tomlConfig:
                 processes=tomlConfig['processNumber'],
                 initializer=init_worker,
                 initargs=(sharedCounter, ),
-                maxtasksperchild=tomlConfig['processNumber'] * 10,
+                maxtasksperchild=10,
                 ) as p:
+                reporter = threading.Thread(
+                    target=progress_reporter,
+                    args=(sharedCounter, numOfFiles, timeStart, p)
+                )
+                reporter.daemon = True
+                reporter.start()
                 p.starmap(mainCalcs, zip(repeat(tomlConfig), repeat(''), repeat(''),
-                                    task_entries, repeat(reqVars)))
-    
+                                    task_entries, repeat(reqVars)), chunksize=1)
+
     except Exception as e:
         print(f"\nAn error occurred: {repr(e)}")
         sys.exit(1)

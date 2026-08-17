@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 import time
 from typing import Any
@@ -120,7 +121,18 @@ def init_spinner(stop_event: Any, timeStart: float) -> None:
         time.sleep(0.5)
 
 
-def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
+def _rss_mb(pid: int) -> float:
+    try:
+        with open(f'/proc/{pid}/status') as f:
+            for line in f:
+                if line.startswith('VmRSS:'):
+                    return int(line.split()[1]) / 1024
+    except FileNotFoundError:
+        pass
+    return 0.0
+
+
+def progress_reporter(counter: Any, totalN: int, timeStart: float, pool: Any = None) -> None:
     """
     Print a CLI progress bar to stdout, updating every second until done.
 
@@ -136,17 +148,29 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float) -> None:
         Total number of files to process.
     timeStart : float
         Start time from ``time.time()``, used to compute elapsed time.
+    pool : multiprocessing.Pool, optional
+        If provided, the current fleet RSS (main + workers) and the peak
+        observed so far are appended to the progress line.
     """
     dots = ['   ', '.  ', '.. ', '...']
     dot_idx = 0
+    peak_rss = 0.0
     while True:
         currentN = counter.value
         elapsed_str = format_seconds(time.time() - timeStart)
         pct = f"\033[1m{(currentN/totalN)*100:4.2f}%\033[0m"
 
+        ram_str = ''
+        if pool is not None:
+            pids = [os.getpid()] + [p.pid for p in pool._pool if p.is_alive()]
+            cur_rss = sum(_rss_mb(p) for p in pids)
+            if cur_rss > peak_rss:
+                peak_rss = cur_rss
+            ram_str = f" | RAM usage: {cur_rss:.0f} MB (peak {peak_rss:.0f} MB)"
+
         sys.stdout.write(
             f"\rProcessing{dots[dot_idx % 4]}| File {currentN}/{totalN} ({pct}) | "
-            f"Time elapsed: {elapsed_str}\033[K"
+            f"Time elapsed: {elapsed_str}{ram_str}\033[K"
         )
         sys.stdout.flush()
         dot_idx += 1
