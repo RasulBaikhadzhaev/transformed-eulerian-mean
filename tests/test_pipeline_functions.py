@@ -17,16 +17,16 @@ import pytest
 import xarray as xr
 from pathlib import Path
 
-from tem_pkg.utils import binData, addRatioUnits
-from tem_pkg.file_io import readAndTransposeData, readDataAndGetWeightedAverage
-from tem_pkg.interpolation import (
+from transformed_eulerian_mean.utils import binData, addRatioUnits
+from transformed_eulerian_mean.file_io import readAndTransposeData, readDataAndGetWeightedAverage
+from transformed_eulerian_mean.interpolation import (
     interpolateToThetaAndCombineData,
     interpolateToPressureAndCombineData,
     interpolateToLogPressure,
 )
-from tem_pkg.tracer_transport_theta import tracerTransport as tracerTransportTheta
-from tem_pkg.tracer_transport_press import tracerTransport as tracerTransportPress
-from tem_pkg.residual_circulation import TEMCalcs
+from transformed_eulerian_mean.tracer_transport_theta import tracerTransport as tracerTransportTheta
+from transformed_eulerian_mean.tracer_transport_press import tracerTransport as tracerTransportPress
+from transformed_eulerian_mean.residual_circulation import TEMCalcs
 
 addRatioUnits()
 

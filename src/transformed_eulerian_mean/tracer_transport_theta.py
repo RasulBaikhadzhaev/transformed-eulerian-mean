@@ -218,7 +218,7 @@ def mainCalcs(tomlConfig: dict, task_path: Any = '', reqVarsWithTracers: Any = '
 
     Reads input file(s), interpolates to the theta grid, runs
     :func:`tracerTransport`, and writes results to a NetCDF file via
-    :func:`~tem_pkg.file_io.saveOut`.
+    :func:`~transformed_eulerian_mean.file_io.saveOut`.
 
     Called by the multiprocessing pool; increments the shared ``counter`` on
     success. Re-raises exceptions with the offending file path prepended to

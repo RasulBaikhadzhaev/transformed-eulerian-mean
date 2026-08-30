@@ -435,12 +435,12 @@ Same variables as above, with `_theta` replacing `_z` for the vertical component
 ## Project structure
 
 ```
-TEM_pkg/
+transformed-eulerian-mean/
 ├── config/                          # TOML configuration templates
 │   ├── residualCirc_config.toml
 │   ├── tracerTransportPress_config.toml
 │   └── tracerTransportTheta_config.toml
-├── src/tem_pkg/                     # Package source code
+├── src/transformed_eulerian_mean/   # Package source code
 │   ├── cli.py                       # Entry points for the three calculators
 │   ├── residual_circulation.py      # Residual circulation (V*, W*, EP flux)
 │   ├── tracer_transport_press.py    # Tracer transport in pressure coordinates
@@ -492,15 +492,15 @@ The Fourier decomposition currently computes waves from instantaneous (daily or 
 
 ### RAM usage optimisation
 
-For large datasets the peak memory footprint during processing can be significant. Planned work includes performing intermediate calculations in 32-bit floating-point precision where the loss of precision is acceptable, and explicitly releasing arrays from memory as soon as they are no longer needed. Together these changes should substantially reduce per-worker memory usage and allow larger grids or longer time series to be processed within typical memory budgets.
+For large datasets the peak memory footprint during processing can be significant. Planned work includes performing intermediate calculations in 32-bit floating-point precision where the loss of precision is acceptable.
 
 ---
 
 ## How to cite
 
-If you use `tem_pkg` in published work, please cite the archived code release:
+If you use `transformed-eulerian-mean` in published work, please cite the archived code release:
 
-> Baikhadzhaev, R. (2026). *tem_pkg: A Python package for Transformed Eulerian Mean diagnostics* (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
+> Baikhadzhaev, R. (2026). *Transformed Eulerian Mean: A Python package for TEM diagnostics of atmospheric circulation* (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
 
 A `CITATION.cff` file is included in the repository for reference managers that support it. Update the DOI badge and `CITATION.cff` with the real Zenodo DOI after uploading.
 

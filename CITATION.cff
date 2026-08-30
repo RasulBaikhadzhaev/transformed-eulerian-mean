@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "Title of the paper"
-version: 0.1.0
+title: "Transformed Eulerian Mean: A Python package for TEM diagnostics of atmospheric circulation"
+version: 1.0.0
 date-released: 2026-05-22
 license: MIT
 repository-code: https://github.com/RasulBaikhadzhaev/transformed-eulerian-mean

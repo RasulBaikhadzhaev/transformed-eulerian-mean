@@ -1,6 +1,6 @@
 import pytest
 
-from tem_pkg.parser import residual_circ_parser, tTransport_theta_parser, tTransport_press_parser
+from transformed_eulerian_mean.parser import residual_circ_parser, tTransport_theta_parser, tTransport_press_parser
 
 _CFG = "from config file"
 

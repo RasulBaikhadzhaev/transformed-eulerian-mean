@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 import xarray as xr
 from metpy.units import units
-from tem_pkg.tracer_transport_press import tracerTransport, mainCalcs, init_worker
-from tem_pkg.utils import addRatioUnits
+from transformed_eulerian_mean.tracer_transport_press import tracerTransport, mainCalcs, init_worker
+from transformed_eulerian_mean.utils import addRatioUnits
 
 addRatioUnits()
 

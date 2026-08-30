@@ -13,7 +13,7 @@ import xarray as xr
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from tem_pkg.cli import run_residual, run_tracer_transport_theta, run_tracer_transport_press
+from transformed_eulerian_mean.cli import run_residual, run_tracer_transport_theta, run_tracer_transport_press
 
 _TESTS_DIR  = Path(__file__).parent
 _REPO_ROOT  = _TESTS_DIR.parent
@@ -336,7 +336,7 @@ def test_rescirc_daily_temporal_mean(tmp_path):
 
 def test_rescirc_missing_timestamps_printed(tmp_path, capsys):
     """When collectFileNames returns a non-empty missingTimeStamps, lines 76-79 run."""
-    import tem_pkg.cli as cli_module
+    import transformed_eulerian_mean.cli as cli_module
     missing_ts = pd.DatetimeIndex(['2000-01-02 00:00:00'])
     fake_paths = pd.DataFrame(
         {'Path': [str(_REPO_ROOT / 'tests/data/sample_input/ERA5/era5_sample_00010100.nc')]},
@@ -482,7 +482,7 @@ def test_press_tracer_in_met_reqvars(tmp_path):
 
 def test_tracer_transport_separate_missing_printed(tmp_path, capsys):
     """tracerDataInMetFiles=False: missing timestamps print block (lines 191-199)."""
-    import tem_pkg.cli as cli_module
+    import transformed_eulerian_mean.cli as cli_module
     missing_ts = ['2000-01-02 00:00:00']
     met_paths = pd.DataFrame(
         {'Path': [str(_REPO_ROOT / 'tests/data/sample_input/ERA5/era5_sample_00010100.nc')]},
@@ -522,7 +522,7 @@ def test_theta_tracer_in_met_pool_branch(tmp_path):
 
 def test_tracer_transport_in_met_missing_printed(tmp_path, capsys):
     """tracerDataInMetFiles=True: missing timestamps print block (lines 163-167)."""
-    import tem_pkg.cli as cli_module
+    import transformed_eulerian_mean.cli as cli_module
     missing_ts = pd.DatetimeIndex(['2000-01-02 00:00:00'])
     fake_paths = pd.DataFrame(
         {'Path': [str(_REPO_ROOT / 'tests/data/sample_input/ERA5/era5_sample_00010100.nc')]},
