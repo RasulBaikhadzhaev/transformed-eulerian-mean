@@ -484,11 +484,12 @@ Sample input files and baseline reference output are in `tests/data/`.
 
 ### Separation of stationary and transient waves
 
-The Fourier decomposition currently computes waves from instantaneous (daily or sub-daily) fields. A planned extension will separate stationary and transient wave contributions by additionally computing the decomposition on monthly-mean fields. Waves present in the monthly mean represent the stationary component; the difference between the instantaneous and monthly-mean wave fields gives the transient component. This will allow users to attribute tracer transport tendencies and EP flux to stationary versus transient eddies without any additional input data.
+Stationary and transient wave contributions can already be separated using the existing package with two runs:
 
-### RAM usage optimisation
+1. **First run** — compute the decomposition on time-averaged fields (e.g. monthly or seasonal means, or other averaging period which is appropriate for the definition of a stationary wave). The resulting wave tendencies represent the **stationary** component.
+2. **Second run** — compute the decomposition on the original high frequency fields and take mean over same period like in the first run. The difference between this result and the first run gives the **transient** component.
 
-For large datasets the peak memory footprint during processing can be significant. Planned work includes performing intermediate calculations in 32-bit floating-point precision where the loss of precision is acceptable.
+No additional input data or code changes are required. A dedicated workflow and documentation illustrating this approach are planned.
 
 ---
 
