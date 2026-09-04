@@ -1,8 +1,6 @@
 # Transformed Eulerian Mean
 
-<!-- TODO: Update the Zenodo DOI badge below and in CITATION.cff (also at the end of README in "How to cite" section) with the real DOI after uploading to Zenodo. Also set date-released and paper DOI in CITATION.cff, add email to pyproject.toml, create git tag v1.0.0, and register in FZJ software catalogue. -->
-
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22307291.svg)](https://doi.org/10.5281/zenodo.22307291)
 
 A Python package for Transformed Eulerian Mean (TEM) diagnostics of atmospheric circulation.
 TEM separates the meridional circulation into a residual mean flow and eddy-driven components,
@@ -459,8 +457,6 @@ transformed-eulerian-mean/
 │   │   ├── sample_output/           # Output written during test runs
 │   │   └── baseline_output/         # Reference output for regression tests
 │   └── test_*.py                    # Test modules (one per source module)
-├── scripts/
-│   └── create_sample_files.py       # Helper to regenerate test input data
 └── pyproject.toml                   # Build config, dependencies, Pixi tasks
 ```
 
@@ -500,8 +496,8 @@ For large datasets the peak memory footprint during processing can be significan
 
 If you use `transformed-eulerian-mean` in published work, please cite the archived code release:
 
-> Baikhadzhaev, R. (2026). *Transformed Eulerian Mean: A Python package for TEM diagnostics of atmospheric circulation* (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.XXXXXXX
+> Baikhadzhaev, R. (2026). *Transformed Eulerian Mean: A Python package for TEM diagnostics of atmospheric circulation* (v1.0.0). Zenodo. https://doi.org/10.5281/zenodo.22307291
 
-A `CITATION.cff` file is included in the repository for reference managers that support it. Update the DOI badge and `CITATION.cff` with the real Zenodo DOI after uploading.
+A `CITATION.cff` file is included in the repository for reference managers that support it.
 
 ---

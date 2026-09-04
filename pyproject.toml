@@ -6,7 +6,7 @@ requires-python = ">= 3.14"
 version = "1.0.0"
 license = { text = "MIT" }
 authors = [
-  {name = "Rasul Akhun Baikhadzhaev", email = "baihadjaev@hotmail.com"}
+  {name = "Rasul Akhun Baikhadzhaev"}
 ]
 
 [tool.hatch.build.targets.wheel]
