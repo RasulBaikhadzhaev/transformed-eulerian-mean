@@ -1,5 +1,5 @@
 """
-Unit tests for tem_pkg.interpolation.
+Unit tests for transformed_eulerian_mean.interpolation.
 
 Covers all previously uncovered branches:
   - alt2press / press2alt (round-trip)
@@ -15,8 +15,8 @@ import pytest
 import xarray as xr
 from metpy.units import units
 
-from tem_pkg.utils import addRatioUnits
-from tem_pkg.interpolation import (
+from transformed_eulerian_mean.utils import addRatioUnits
+from transformed_eulerian_mean.interpolation import (
     alt2press,
     press2alt,
     interpolateToLogPressure,

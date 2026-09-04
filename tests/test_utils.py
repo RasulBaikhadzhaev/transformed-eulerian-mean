@@ -5,14 +5,14 @@ import xarray as xr
 from metpy.units import units
 
 from pathlib import Path
-from tem_pkg.utils import (
+from transformed_eulerian_mean.utils import (
     nanGradient,
     is_equal_or_shorter_than_month, is_equal_or_shorter_than_day,
     format_seconds, binData, addRatioUnits,
 )
-from tem_pkg.interpolation import alt2press, press2alt
-from tem_pkg.file_io import extractTimeFromFileNames
-from tem_pkg.constants import P0, H
+from transformed_eulerian_mean.interpolation import alt2press, press2alt
+from transformed_eulerian_mean.file_io import extractTimeFromFileNames
+from transformed_eulerian_mean.constants import P0, H
 
 addRatioUnits()
 

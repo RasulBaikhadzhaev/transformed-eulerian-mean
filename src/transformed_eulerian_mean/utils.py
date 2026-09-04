@@ -132,7 +132,7 @@ def _rss_mb(pid: int) -> float:
     return 0.0
 
 
-def progress_reporter(counter: Any, totalN: int, timeStart: float, pool: Any = None) -> None:
+def progress_reporter(counter: Any, totalN: int, timeStart: float, pool: Any) -> None:
     """
     Print a CLI progress bar to stdout, updating every second until done.
 
@@ -148,9 +148,8 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float, pool: Any = N
         Total number of files to process.
     timeStart : float
         Start time from ``time.time()``, used to compute elapsed time.
-    pool : multiprocessing.Pool, optional
-        If provided, the current fleet RSS (main + workers) and the peak
-        observed so far are appended to the progress line.
+    pool : multiprocessing.Pool
+        Used to collect RSS memory from the main process and all workers.
     """
     dots = ['   ', '.  ', '.. ', '...']
     dot_idx = 0
@@ -160,13 +159,11 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float, pool: Any = N
         elapsed_str = format_seconds(time.time() - timeStart)
         pct = f"\033[1m{(currentN/totalN)*100:4.2f}%\033[0m"
 
-        ram_str = ''
-        if pool is not None:
-            pids = [os.getpid()] + [p.pid for p in pool._pool if p.is_alive()]
-            cur_rss = sum(_rss_mb(p) for p in pids)
-            if cur_rss > peak_rss:
-                peak_rss = cur_rss
-            ram_str = f" | RAM usage: {cur_rss:.0f} MB (peak {peak_rss:.0f} MB)"
+        pids = [os.getpid()] + [p.pid for p in pool._pool if p.is_alive()]
+        cur_rss = sum(_rss_mb(p) for p in pids)
+        if cur_rss > peak_rss:
+            peak_rss = cur_rss
+        ram_str = f" | RAM usage: {cur_rss:.0f} MB (peak {peak_rss:.0f} MB)"
 
         sys.stdout.write(
             f"\rProcessing{dots[dot_idx % 4]}| File {currentN}/{totalN} ({pct}) | "
@@ -176,7 +173,9 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float, pool: Any = N
         dot_idx += 1
 
         if currentN >= totalN:
-            sys.stdout.write("\n")
+            sys.stdout.write(
+                f"\rDone!      | Processed {currentN} files in {elapsed_str} | Max RAM usage: {peak_rss:.0f} MB\033[K\n"
+            )
             sys.stdout.flush()
             break
 

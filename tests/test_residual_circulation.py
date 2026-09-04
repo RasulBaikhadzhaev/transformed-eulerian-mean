@@ -5,8 +5,8 @@ import pandas as pd
 import pytest
 import xarray as xr
 from metpy.units import units
-from tem_pkg.residual_circulation import TEMCalcs, mainCalcs, init_worker
-from tem_pkg.utils import addRatioUnits
+from transformed_eulerian_mean.residual_circulation import TEMCalcs, mainCalcs, init_worker
+from transformed_eulerian_mean.utils import addRatioUnits
 
 addRatioUnits()
 
@@ -563,7 +563,7 @@ def test_run_tem_attach_vars_non_empty(synthetic_logpress_dataset, minimal_tem_c
     Production code indexes with a single string key, so each list must contain exactly
     one variable name passed as a string (not a list).
     """
-    from tem_pkg.residual_circulation import _run_tem_and_attach_vars
+    from transformed_eulerian_mean.residual_circulation import _run_tem_and_attach_vars
 
     ds = synthetic_logpress_dataset.copy(deep=True)
     # Add 2-D (alt, lat) variables that mimic already-zonally-averaged outputs

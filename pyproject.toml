@@ -1,18 +1,22 @@
 [project]
 dependencies = []
 name = "Transformed-Eulerian-Mean"
+description = "A Python package for computation of middle-atmosphere circulation and tracer transport tendencies with wavenumber decomposition"
 requires-python = ">= 3.14"
 version = "1.0.0"
 license = { text = "MIT" }
+authors = [
+  {name = "Rasul Akhun Baikhadzhaev"}
+]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/tem_pkg"]
+packages = ["src/transformed_eulerian_mean"]
 
 [project.scripts]
 # Command-name = "package_folder.file_name:function_name"
-residual = "tem_pkg.cli:run_residual"
-transport-theta = "tem_pkg.cli:run_tracer_transport_theta"
-transport-press = "tem_pkg.cli:run_tracer_transport_press"
+residual = "transformed_eulerian_mean.cli:run_residual"
+transport-theta = "transformed_eulerian_mean.cli:run_tracer_transport_theta"
+transport-press = "transformed_eulerian_mean.cli:run_tracer_transport_press"
 
 [build-system]
 build-backend = "hatchling.build"
@@ -22,7 +26,7 @@ requires = ["hatchling"]
 channels = ["conda-forge"]
 platforms = ["linux-64", "osx-arm64", "osx-64", "win-64"]
 [tool.pixi.pypi-dependencies]
-transformed_eulerian_mean = { path = ".", editable = true }
+transformed-eulerian-mean = { path = ".", editable = true }
 
 [tool.ruff]
 # Set the maximum line length
@@ -48,7 +52,7 @@ lint-fix = "ruff check src --fix"
 # Reformat the code style (spacing, quotes, etc.)
 format = "ruff format src"
 # Run tests with coverage report
-coverage = "pytest tests/ --cov=src/tem_pkg --cov-report=term-missing"
+coverage = "pytest tests/ --cov=src/transformed_eulerian_mean --cov-report=term-missing"
 # Run lint then full test suite
 ci = { depends-on = ["lint", "coverage"] }
 

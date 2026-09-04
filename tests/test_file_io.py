@@ -1,5 +1,5 @@
 """
-Unit tests for tem_pkg.file_io covering previously uncovered paths.
+Unit tests for transformed_eulerian_mean.file_io covering previously uncovered paths.
 
 Groups:
   - extractTimeFromFileNames: error path, non-wildcard YY prefix
@@ -17,7 +17,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 
-from tem_pkg.file_io import (
+from transformed_eulerian_mean.file_io import (
     _ALT_VERT_COORD,
     _THETA_VERT_COORD,
     chunkMetFilesPathsForBinning,
