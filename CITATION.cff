@@ -1,29 +1,22 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-title: "Transformed Eulerian Mean: A Python package for TEM diagnostics of atmospheric circulation"
+title: "Transformed Eulerian Mean (TEM): A Python package for computation of middle-atmosphere circulation and tracer transport tendencies with wavenumber decomposition"
 version: 1.0.0
-date-released: 2026-05-22
+date-released: "YYYY-MM-DD"
 license: MIT
 repository-code: https://github.com/RasulBaikhadzhaev/transformed-eulerian-mean
 doi: 10.5281/zenodo.XXXXXXX
 authors:
   - family-names: Baikhadzhaev
-    given-names: Rasul
-    orcid: https://orcid.org/XXXX-XXXX-XXXX-XXXX
-  - family-names: Co-Author
-    given-names: ""
-  - family-names: Co-Author
-    given-names: ""
+    given-names: Rasul Akhun
+    orcid: https://orcid.org/0009-0004-7905-2096
 preferred-citation:
   type: article
-  title: "Title of the paper"
+  title: "Transformed Eulerian Mean (v1.0.0): A Python package for computation of middle-atmosphere circulation and tracer transport tendencies with wavenumber decomposition"
   authors:
     - family-names: Baikhadzhaev
-      given-names: Rasul
-    - family-names: Co-Author
-      given-names: ""
-    - family-names: Co-Author
-      given-names: ""
+      given-names: Rasul Akhun
+      orcid: https://orcid.org/0009-0004-7905-2096
   journal: "Geoscientific Model Development"
   year: 2026
   doi: 10.5194/gmd-XXXXX

@@ -1,6 +1,6 @@
 # Transformed Eulerian Mean
 
-> **Before publishing:** Update the Zenodo DOI badge below and in `CITATION.cff` (ALSO AT THE END OF README IN HOW TO CITE SECTION) with the real DOI after uploading to Zenodo. Also update the title, authors, and journal details in `CITATION.cff`.
+<!-- TODO: Update the Zenodo DOI badge below and in CITATION.cff (also at the end of README in "How to cite" section) with the real DOI after uploading to Zenodo. Also set date-released and paper DOI in CITATION.cff, add email to pyproject.toml, create git tag v1.0.0, and register in FZJ software catalogue. -->
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 
