@@ -491,6 +491,14 @@ Stationary and transient wave contributions can already be separated using the e
 
 No additional input data or code changes are required. A dedicated workflow and documentation illustrating this approach are planned.
 
+### Multiple-timestep support for tracer transport
+
+Currently, only the residual circulation calculator supports input files that contain multiple timesteps. The tracer transport calculators (pressure-level and theta-level) process one timestep at a time.
+
+The plan is to extend multiple-timestep support to tracer transport as well. This requires care around the combination of tracer and meteorological files: when tracers and met fields are stored in separate files, the matching logic must correctly align timesteps across both file sets before processing.
+
+Until this is implemented, users are required to split multi-timestep files into single-timestep files as a preprocessing step before passing them to the tracer transport calculators.
+
 ---
 
 ## How to cite
