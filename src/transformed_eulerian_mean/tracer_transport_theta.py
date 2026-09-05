@@ -104,9 +104,11 @@ def tracerTransport(interpolatedDataset: xr.Dataset, tomlConfig: dict) -> tuple[
         div_M_theta = nanGradient(M_theta, thetaLevels, axis=0)
                 
         sinkSource = 0 * chi.units / units('s')
-        if tomlConfig['sinksSources'][index].isdigit():
-            sinkSource = int(tomlConfig['sinksSources'][index]) * chi.units / units('s')
-        elif 'half life' in tomlConfig['sinksSources'][index]:
+        try:
+            sinkSource = float(tomlConfig['sinksSources'][index]) * chi.units / units('s')
+        except ValueError:
+            pass
+        if 'half life' in tomlConfig['sinksSources'][index]:
             halfLife = float(tomlConfig['sinksSources'][index].split(', ')[1])
             halfLifeUnits = units(tomlConfig['sinksSources'][index].split(', ')[2])
             sinkSource = -chiBar * np.log(2) / (halfLife * halfLifeUnits).to_base_units()
