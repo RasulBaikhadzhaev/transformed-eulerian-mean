@@ -170,6 +170,7 @@ def _tem_config(target_levels=None, **overrides):
         "pressureName": "PRESS",
         "verticalDimensionType": "other",
         "saveEddyTerms": False,
+        "saveMomentumBalanceTerms": False,
         "FourierTransform": False,
         "Waves": ["1"],
         "inputDataDescription": "sample",

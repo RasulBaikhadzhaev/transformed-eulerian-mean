@@ -261,6 +261,11 @@ def residual_circ_parser() -> argparse.ArgumentParser:
                              "Some terms are 3-D and require significant storage. "
                              "Accepts true or false.")
 
+    parser.add_argument("--saveMomentumBalanceTerms",
+                        default=_CFG,
+                        help="save terms of the momentum balance equation to the output file. "
+                             "Accepts true or false.")
+
     parser.add_argument("--saveInterpolatedZonalMean",
                         default=_CFG,
                         help="interpolate to targetLevels and save the zonal mean of these input variables.")

@@ -544,7 +544,7 @@ def saveOut(dataToSave: dict, tomlConfig: dict, timeStamp: Any, lats: np.ndarray
         Metadata for the vertical coordinate: ``{'name', 'long_name', 'units'}``.
         Defaults to potential-temperature levels (theta, K).
     """
-    fnout = tomlConfig['outputDirectory'] + '/' + tomlConfig['outPrefix'] + str(timeStamp)[:-3].replace('-', '_').replace(' ', '_').replace(':', '_') + '.nc'
+    fnout = tomlConfig['outputDirectory'] + '/' + tomlConfig['outPrefix'] + '_' + str(timeStamp)[:-3].replace('-', '_').replace(' ', '_').replace(':', '_') + '.nc'
 
     if 'Fourier' in dataToSave.keys():
         Fourier = dataToSave['Fourier']

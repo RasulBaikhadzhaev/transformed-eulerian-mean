@@ -383,6 +383,7 @@ def _mainCalcs_config(output_dir):
         'targetLevels': [5.0, 10.0, 17.35, 25.0, 35.0],
         'FourierTransform': False,
         'saveEddyTerms': False,
+        'saveMomentumBalanceTerms': False,
         'inputDataDescription': 'unit test',
         'Waves': ['1'],
     }

@@ -98,6 +98,7 @@ def minimal_tem_config():
         'verticalWindName': 'OMEGA',
         'verticalWindType': 'omega',
         'saveEddyTerms': False,
+        'saveMomentumBalanceTerms': False,
         'FourierTransform': False,
         'inputDataDescription': 'test data',
         'Waves': ['1'],

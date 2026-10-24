@@ -103,6 +103,10 @@ fillValues = [-1e+30]
 # Accepts true or false.
 saveEddyTerms = true
 
+# Save terms of the momentum balance equation to the output file
+# Accepts true or false
+saveMomentumBalanceTerms = false
+
 # Interpolate to targetLevels and save the zonal mean of these input variables.
 # Use an empty list [] to save nothing.
 saveInterpolatedZonalMean = ['THETA_DOT_TOT', 'TEMP', 'GPH', 'SH']

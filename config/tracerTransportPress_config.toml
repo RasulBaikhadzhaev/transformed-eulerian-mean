@@ -31,7 +31,7 @@ inFileNames = 'era5*.nc'
 timeInfoInFileNames = '*YYMMDDHH???'
 
 # Prefix for output file names. The string '{tracerNames}' is replaced with the tracer names.
-outPrefix = '{tracerNames}_Transport_'
+outPrefix = '{tracerNames}_Transport'
 
 
 ####################################################################################################

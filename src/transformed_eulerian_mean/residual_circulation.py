@@ -175,7 +175,29 @@ def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dat
         dsOut.coords['lon'] = np.array(datasetLogPress.lon)
         dsOut.lon.attrs['long_name'] = 'longitude'
         dsOut.lon.attrs['units'] = str(datasetLogPress.lon.units)
-        
+
+    if tomlConfig['saveMomentumBalanceTerms']:
+        # compute terms in momentum equation
+        # inserted by Amelie 
+        momentum_eq_vterm_adv = -vBarStar * (1 / (rEarth * cosFi)) * nanGradient(uBar * cosFi, latsR, axis=1)
+        momentum_eq_vterm_f = vBarStar * coriolisParameter
+        momentum_eq_vterm = momentum_eq_vterm_adv + momentum_eq_vterm_f
+        momentum_eq_wterm = -wBarStar * nanGradient(uBar, altitudes, axis=0)
+        momentum_eq_divEPFLat = 1 / (densBasic2D * rEarth * cosFi) * divEPFLat
+        momentum_eq_divEPFVert = 1 / (densBasic2D * rEarth * cosFi) * divEPFVert
+        momentum_eq_divEPF = momentum_eq_divEPFLat + momentum_eq_divEPFVert
+        dataToSave_momentum_equation = {
+                #'momentum_eq_vterm_adv': (momentum_eq_vterm_adv.magnitude, 'Advective component of v-term in momentum equation', str(momentum_eq_vterm_adv.units)),
+                #'momentum_eq_vterm_F': (momentum_eq_vterm_f.magnitude, 'Coriolis term of v-term in momentum equation', str(momentum_eq_vterm_f.units)),
+                'momentum_eq_vterm': (momentum_eq_vterm.magnitude, 'v-term in momentum equation', str(momentum_eq_vterm.units)),
+                'momentum_eq_wterm': (momentum_eq_wterm.magnitude, 'w-term in momentum equation', str(momentum_eq_wterm.units)),
+                'momentum_eq_divEPFLat': (momentum_eq_divEPFLat.magnitude, 'Horizontal component of divEPF-term in momentum equation', str(momentum_eq_divEPFLat.units)),
+                'momentum_eq_divEPFVert': (momentum_eq_divEPFVert.magnitude, 'Vertical component of divEPF-term in momentum equation', str(momentum_eq_divEPFVert.units)),
+                'momentum_eq_divEPF': (momentum_eq_divEPF.magnitude, 'divEPF-term in momentum equation', str(momentum_eq_divEPF.units)),
+            }
+        dataToSave.update(dataToSave_momentum_equation)
+
+    
     # add main results to output dataset
     for variable in dataToSave.keys():
         dsOut[variable] = (('alt', 'lat'), np.single(dataToSave[variable][0]))
