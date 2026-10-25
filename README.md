@@ -85,7 +85,7 @@ Its divergence $\nabla \cdot F$ is the wave forcing on the zonal mean flow and i
 
 The `residual` and `transport-press` calculators compute the TEM residual mass stream function by integrating $\bar{v}^\ast$ downward from the model top:
 
-$$\psi^\ast(\phi, z) = -\cos\phi \int_z^\infty \rho_0 \bar{v}^\ast(\phi, z') \mathrm{d}z'$$
+$$\psi^\ast(\phi, z) = \cos\phi \int_z^\infty \rho_0 \bar{v}^\ast(\phi, z') \mathrm{d}z'$$
 
 ### Tracer transport in log-pressure coordinates
 

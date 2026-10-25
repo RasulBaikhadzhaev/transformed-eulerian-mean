@@ -559,11 +559,7 @@ def test_fourier_save_eddy_terms_open_end_range(synthetic_logpress_dataset, mini
 # ---------------------------------------------------------------------------
 
 def test_run_tem_attach_vars_non_empty(synthetic_logpress_dataset, minimal_tem_config):
-    """Non-empty saveInterpolatedZonalMeanVars / saveZonalMeanVars cover lines 323, 325.
-
-    Production code indexes with a single string key, so each list must contain exactly
-    one variable name passed as a string (not a list).
-    """
+    """Non-empty saveInterpolatedZonalMeanVars / saveZonalMeanVars lists attach variables to dsOut."""
     from transformed_eulerian_mean.residual_circulation import _run_tem_and_attach_vars
 
     ds = synthetic_logpress_dataset.copy(deep=True)
@@ -574,8 +570,8 @@ def test_run_tem_attach_vars_non_empty(synthetic_logpress_dataset, minimal_tem_c
 
     dsOut = _run_tem_and_attach_vars(
         minimal_tem_config, ds, TIMESTAMP,
-        saveInterpolatedZonalMeanVars='BA_zm',
-        saveZonalMeanVars='O3_zm',
+        saveInterpolatedZonalMeanVars=['BA_zm'],
+        saveZonalMeanVars=['O3_zm'],
     )
     assert 'BA_zm' in dsOut
     assert 'O3_zm' in dsOut

@@ -339,9 +339,13 @@ def _run_tem_and_attach_vars(tomlConfig: dict, datasetLogPress: xr.Dataset, time
     """
     dsOut = TEMCalcs(tomlConfig, datasetLogPress, timestamp)
     if saveInterpolatedZonalMeanVars:
-        dsOut[saveInterpolatedZonalMeanVars] = datasetLogPress[saveInterpolatedZonalMeanVars]
+        vars_interp = [saveInterpolatedZonalMeanVars] if isinstance(saveInterpolatedZonalMeanVars, str) else saveInterpolatedZonalMeanVars
+        for var in vars_interp:
+            dsOut[var] = datasetLogPress[var]
     if saveZonalMeanVars:
-        dsOut[saveZonalMeanVars] = datasetLogPress[saveZonalMeanVars]
+        vars_zm = [saveZonalMeanVars] if isinstance(saveZonalMeanVars, str) else saveZonalMeanVars
+        for var in vars_zm:
+            dsOut[var] = datasetLogPress[var]
     return dsOut
 
 

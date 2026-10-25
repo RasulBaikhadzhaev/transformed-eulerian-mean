@@ -120,7 +120,7 @@ def _load_and_filter_file_paths(inputDir: str, fileNames: str, timeInfoInFileNam
             print(f"ERROR: File '{fileNames}' does not exist in '{inputDir}'.\n\n"
                   "Please specify NetCDF filename which contains data for TEM calculations")
             sys.exit(1)
-    elif inputPathType == '.txt':
+    elif inputPathType in ('.txt', 'txt'):
         with open(inputDir) as txtFile:
             filesPaths = [Path(line.strip()) for line in txtFile]
         if not filesPaths:
