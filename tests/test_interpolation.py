@@ -467,3 +467,37 @@ def test_combine_press_invalid_met_type_exits():
     }
     with pytest.raises(SystemExit):
         interpolateToPressureAndCombineData(tracer, met, ['U'], cfg)
+
+
+def test_interp1d_3d_handles_nan_at_origin_and_in_column():
+    """_interp1d_3d with decreasing source_3d and NaN at [0, 0, 0] must still flip and interpolate valid columns."""
+    from transformed_eulerian_mean.interpolation import _interp1d_3d
+
+    # Decreasing coordinate along axis 0: [30, 20, 10, 0]
+    src = np.broadcast_to(np.array([30.0, 20.0, 10.0, 0.0])[:, None, None], (4, 2, 2)).copy()
+    dat = src * 2.0
+    # Put NaN at [0, 0, 0] (bottom of column (0, 0) after flip)
+    src[0, 0, 0] = np.nan
+    dat[0, 0, 0] = np.nan
+
+    out = _interp1d_3d(np.array([5.0, 15.0, 25.0]), src, dat)[0]
+    # Uncorrupted columns should equal 2 * target
+    np.testing.assert_allclose(out[:, 0, 1], [10.0, 30.0, 50.0], rtol=1e-5)
+    # Column (0, 0) is valid between 0 and 20, so 5.0 and 15.0 are in-bounds and 25.0 is out-of-bounds (NaN)
+    np.testing.assert_allclose(out[:2, 0, 0], [10.0, 30.0], rtol=1e-5)
+    assert np.isnan(out[2, 0, 0])
+
+
+def test_interp_to_logpress_ndarray_target_and_custom_dim_names():
+    """targetLevels as np.ndarray and custom lat/lon dim names with saveZonalMeanVars must not fail."""
+    ds = _press_ds().rename({'lat': 'latitude', 'lon': 'longitude'})
+    targets = np.array([5.0, 15.0, 25.0])
+    result = interpolateToLogPressure(
+        ds, ['U'], 'pressure', targets, 'press', 'latitude', 'longitude',
+        saveZonalMeanVars=['V'],
+    )
+    assert 'alt' in result.dims
+    assert 'V' in result
+    assert 'longitude' not in result['V'].dims
+    assert 'lat' in result['V'].dims
+

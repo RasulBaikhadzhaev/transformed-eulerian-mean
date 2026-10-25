@@ -292,7 +292,13 @@ def mainCalcs(tomlConfig: dict, task_path: Any = '', reqVarsWithTracers: Any = '
         else:
             timeStamp, tracerFilePath, metFilePaths, metFilesWeights = task_entry
 
-            tracerDataset = readAndTransposeData(tracerFilePath, tomlConfig['tracerNames'],
+            tracerReqVars = list(tomlConfig['tracerNames'])
+            if tomlConfig['tracerVerticalDimensionType'] == 'other':
+                tracer_press_var = tomlConfig.get('tracerPressureName') or tomlConfig['pressureName']
+                if tracer_press_var not in tracerReqVars:
+                    tracerReqVars.append(tracer_press_var)
+
+            tracerDataset = readAndTransposeData(tracerFilePath, tracerReqVars,
                                                 tomlConfig['tracerVertDim'], tomlConfig['tracerLatDim'], tomlConfig['tracerLonDim'],
                                                 timeDimName=tomlConfig.get('tracerTimeDim', ''),
                                                 fillValues=tomlConfig.get('fillValues', []))

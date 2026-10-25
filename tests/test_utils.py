@@ -368,3 +368,36 @@ def test_extracttime_prefix_position():
     assert result[0].year == 1999
     assert result[0].month == 3
     assert result[0].day == 15
+
+
+# ── load_and_merge_config CLI type parsing ───────────────────────────────────
+
+def test_load_and_merge_config_parses_cli_types(tmp_path):
+    """CLI overrides should be parsed into bool, int, list, etc., while string keys stay str."""
+    import argparse
+    from transformed_eulerian_mean.utils import load_and_merge_config
+
+    cfg_file = tmp_path / "cfg.toml"
+    cfg_file.write_text(
+        "FourierTransform = true\n"
+        "processNumber = 2\n"
+        "tracerNames = ['BA']\n"
+        "targetLevels = [10.0, 20.0]\n"
+        "outPrefix = 'orig'\n"
+    )
+    ns = argparse.Namespace(
+        configFile=str(cfg_file),
+        FourierTransform="false",
+        processNumber="4",
+        tracerNames="[O3, N2O]",
+        targetLevels="[5.0, 15.0, 25.0]",
+        outPrefix="2020",
+        binningLat="from config file",
+    )
+    merged = load_and_merge_config(ns)
+    assert merged["FourierTransform"] is False
+    assert merged["processNumber"] == 4
+    assert merged["tracerNames"] == ["O3", "N2O"]
+    assert merged["targetLevels"] == [5.0, 15.0, 25.0]
+    assert merged["outPrefix"] == "2020"
+

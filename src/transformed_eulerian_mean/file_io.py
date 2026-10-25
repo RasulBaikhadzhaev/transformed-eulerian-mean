@@ -45,6 +45,8 @@ def extractTimeFromFileNames(filesPaths: list, timeInfoInFileNames: str) -> pd.D
 
     timeTokens = {'monthString': 'MM', 'dayString': 'DD', 'hourString': 'HH', 'minuteString': 'mm', 'secondString': 'ss'}
     n = len(filesPaths)
+    if n == 0:
+        return pd.DatetimeIndex([])
 
     if timeInfoInFileNames.startswith('*'):
         names = pd.Series([str(f) for f in filesPaths])
@@ -220,12 +222,13 @@ def collectFileNames(inputDir: str, fileNames: str, timeInfoInFileNames: str, ou
 
     if outDirSkip and str(outputTemporalMean).lower() not in ['monthly', 'month', 'daily', 'day']:
         filesPaths_inOutDir = list(Path(outputDir).rglob(f'{outPrefix}*.nc'))
-        times_InOuttDir = extractTimeFromFileNames(filesPaths_inOutDir, '*YYYY_MM_DD_HH_mm???')
-        filesPathAndTime_InOutDir = pd.DataFrame(data={'Path': filesPaths_inOutDir}, index=times_InOuttDir)
-        filesPathAndTime = filesPathAndTime[~filesPathAndTime.index.isin(filesPathAndTime_InOutDir.index)]
-        if filesPathAndTime.empty:
-            print(f"ERROR: Files with prefix '{outPrefix}' are already present in the output directory for all selected timestamps.")
-            sys.exit(1)
+        if filesPaths_inOutDir:
+            times_InOuttDir = extractTimeFromFileNames(filesPaths_inOutDir, '*YYYY_MM_DD_HH_mm???')
+            filesPathAndTime_InOutDir = pd.DataFrame(data={'Path': filesPaths_inOutDir}, index=times_InOuttDir)
+            filesPathAndTime = filesPathAndTime[~filesPathAndTime.index.isin(filesPathAndTime_InOutDir.index)]
+            if filesPathAndTime.empty:
+                print(f"ERROR: Files with prefix '{outPrefix}' are already present in the output directory for all selected timestamps.")
+                sys.exit(1)
 
     return filesPathAndTime, missingTimeStamps, expectedFrequency
 
@@ -275,18 +278,23 @@ def collectFileNamesTTransport(inputDir: str, fileNames: str, timeInfoInFileName
         inputDir, fileNames, timeInfoInFileNames, dateStart, dateEnd, hoursToKeep, inputPathType)
 
     timeDiffs = filesPathAndTime.index.to_series().diff().dropna()
-    expectedFrequency = timeDiffs.mode()[0]
-    completeRange = pd.date_range(start=filesPathAndTime.index.min(), end=filesPathAndTime.index.max(), freq=expectedFrequency)
-    missingTimeStamps = list(completeRange.difference(filesPathAndTime.index))
+    if not timeDiffs.empty:
+        expectedFrequency = timeDiffs.mode()[0]
+        completeRange = pd.date_range(start=filesPathAndTime.index.min(), end=filesPathAndTime.index.max(), freq=expectedFrequency)
+        missingTimeStamps = list(completeRange.difference(filesPathAndTime.index))
+    else:
+        expectedFrequency = pd.Timedelta(0)
+        missingTimeStamps = []
 
-    if outDirSkip == 1:
+    if outDirSkip:
         filesPaths_inOutDir = list(Path(outputDir).rglob(f'{outPrefix}*.nc'))
-        times_InOuttDir = extractTimeFromFileNames(filesPaths_inOutDir, '*YYYY_MM_DD_HH_mm???')
-        filesPathAndTime_InOutDir = pd.DataFrame(data={'Path': filesPaths_inOutDir}, index=times_InOuttDir)
-        filesPathAndTime = filesPathAndTime[~filesPathAndTime.index.isin(filesPathAndTime_InOutDir.index)]
-        if filesPathAndTime.empty:
-            print(f"ERROR: Files with prefix '{outPrefix}' are already present in the output directory for all selected timestamps.")
-            sys.exit(1)
+        if filesPaths_inOutDir:
+            times_InOuttDir = extractTimeFromFileNames(filesPaths_inOutDir, '*YYYY_MM_DD_HH_mm???')
+            filesPathAndTime_InOutDir = pd.DataFrame(data={'Path': filesPaths_inOutDir}, index=times_InOuttDir)
+            filesPathAndTime = filesPathAndTime[~filesPathAndTime.index.isin(filesPathAndTime_InOutDir.index)]
+            if filesPathAndTime.empty:
+                print(f"ERROR: Files with prefix '{outPrefix}' are already present in the output directory for all selected timestamps.")
+                sys.exit(1)
 
     return filesPathAndTime, missingTimeStamps, expectedFrequency
 
@@ -328,19 +336,18 @@ def chunkMetFilesPathsForBinning(metFilesPaths: pd.DataFrame, tracerFilesPaths: 
                 pathAndTime.dropna(inplace=True)
                 pathAndTime['weight'] = 1
                 for timestamp, row in pathAndTime.iterrows():
-                    pathDictionary[timestamp] = [row.Path, row.metFilesPath, row.weight]
+                    pathDictionary[timestamp] = [row.Path, np.array([row.metFilesPath]), np.array([row.weight])]
             else:
                 # Vectorize window search: compute all lo/hi indices in one searchsorted call
                 # instead of scanning the full met DataFrame per tracer timestamp (O(N log M) vs O(N*M))
-                half = tracerExpectedFrequency / 2
-                lo_arr = metFilesPaths.index.searchsorted(tracerFilesPaths.index - half, side='left')
-                hi_arr = metFilesPaths.index.searchsorted(tracerFilesPaths.index + half, side='right')
+                lo_arr = metFilesPaths.index.searchsorted(tracerFilesPaths.index - tracerExpectedFrequency, side='left')
+                hi_arr = metFilesPaths.index.searchsorted(tracerFilesPaths.index + tracerExpectedFrequency, side='right')
                 for i, timestamp in enumerate(tracerFilesPaths.index):
                     lo, hi = lo_arr[i], hi_arr[i]
                     if hi - lo == 2:
                         met_slice = metFilesPaths.iloc[lo:hi]
-                        weight1stFile = np.abs((met_slice.index[0] - timestamp) / tracerExpectedFrequency)
-                        weight2ndFile = np.abs((met_slice.index[1] - timestamp) / tracerExpectedFrequency)
+                        weight1stFile = 1.0 - np.abs((met_slice.index[0] - timestamp) / tracerExpectedFrequency)
+                        weight2ndFile = 1.0 - np.abs((met_slice.index[1] - timestamp) / tracerExpectedFrequency)
                         pathDictionary[timestamp] = [tracerFilesPaths.loc[timestamp].Path, np.array(met_slice.Path), [weight1stFile, weight2ndFile]]
 
         else:
@@ -462,8 +469,9 @@ def compute_temporal_mean(
     count = 0
     with xr.set_options(keep_attrs=True):
         for path in paths:
-            ds = xr.open_dataset(path)
-            total = ds if total is None else total + ds
+            with xr.open_dataset(path) as ds:
+                loaded = ds.load()
+            total = loaded if total is None else total + loaded
             count += 1
         if total is None or count == 0:
             raise ValueError("No files were provided.")
@@ -501,6 +509,8 @@ def readDataAndGetWeightedAverage(filesPaths: np.ndarray, weights: np.ndarray, r
     xr.Dataset
         Weighted-mean dataset with dimensions ordered as (vertical, lat, lon).
     """
+    filesPaths = np.atleast_1d(filesPaths)
+    weights = np.atleast_1d(weights)
     for index, path in enumerate(filesPaths):
         with xr.open_dataset(path) as ds:
             dataset = ds[reqVars].squeeze().load()

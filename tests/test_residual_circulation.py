@@ -769,6 +769,10 @@ def test_mainCalcs_multiple_files_temporal_mean(tmp_path):
         f"Expected 1 averaged output file, got {len(produced)}: "
         f"{[p.name for p in produced]}"
     )
+    with xr.open_dataset(produced[0]) as ds:
+        assert 'dU_dt' in ds
+        assert not np.all(np.isnan(ds['dU_dt'].values)), "dU_dt should not be all-NaN when multi-timestamp files are averaged"
+
     ds = xr.open_dataset(produced[0])
     assert 'dU_dt' in ds, "dU_dt missing from multi-file temporal mean output"
     assert not np.all(np.isnan(ds['dU_dt'].values)), "dU_dt is all-NaN in multi-file temporal mean output"
@@ -807,3 +811,7 @@ def test_mainCalcs_multiple_files_with_timedim(tmp_path):
         f"Expected 1 averaged output file, got {len(produced)}: "
         f"{[p.name for p in produced]}"
     )
+    with xr.open_dataset(produced[0]) as ds:
+        assert 'dU_dt' in ds
+        assert not np.all(np.isnan(ds['dU_dt'].values)), "dU_dt should not be all-NaN when multi-timestamp files are averaged"
+

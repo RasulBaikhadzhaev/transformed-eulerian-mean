@@ -176,7 +176,7 @@ def TEMCalcs(tomlConfig: dict, datasetLogPress: xr.Dataset, time: Any) -> xr.Dat
         dsOut.lon.attrs['long_name'] = 'longitude'
         dsOut.lon.attrs['units'] = str(datasetLogPress.lon.units)
 
-    if tomlConfig['saveMomentumBalanceTerms']:
+    if tomlConfig.get('saveMomentumBalanceTerms', False):
         # compute terms in momentum equation
         # inserted by Amelie 
         momentum_eq_vterm_adv = -vBarStar * (1 / (rEarth * cosFi)) * nanGradient(uBar * cosFi, latsR, axis=1)
@@ -488,16 +488,18 @@ def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: d
     def _process_group(group_ds, timestamps):
         """Average TEMCalcs over a sequence of timestamps; return finalized dsOut and fnout."""
         if len(timestamps) == 1:
-            ts = timestamps[0].values if hasattr(timestamps[0], 'values') else timestamps[0]
-            dlp = _interp(group_ds.squeeze() if hasattr(group_ds, 'squeeze') else group_ds)
+            raw_ts = timestamps[0].values if hasattr(timestamps[0], 'values') else timestamps[0]
+            ts = pd.Timestamp(raw_ts)
+            squeezed = group_ds.squeeze(dim=timeDim) if hasattr(group_ds, 'squeeze') and timeDim in group_ds.dims else group_ds
+            dlp = _interp(squeezed)
             dsOut = _run_tem_and_attach_vars(tomlConfig, dlp, ts, saveInterpolatedZonalMeanVars, saveZonalMeanVars)
             return dsOut, _build_output_filename(tomlConfig, pd.Timestamp(dsOut.time.values[0]))
 
         first = True
         for ts in timestamps:
-            ts = ts if not hasattr(ts, 'values') else ts.values
-            dlp = _interp(group_ds, ts)
-            dsInstance = _run_tem_and_attach_vars(tomlConfig, dlp, ts, saveInterpolatedZonalMeanVars, saveZonalMeanVars)
+            ts_sel = ts if not hasattr(ts, 'values') else ts.values
+            dlp = _interp(group_ds, ts_sel)
+            dsInstance = _run_tem_and_attach_vars(tomlConfig, dlp, pd.Timestamp(ts_sel), saveInterpolatedZonalMeanVars, saveZonalMeanVars)
             if first:
                 time1st = dsInstance.coords['time']
                 dsU = dsInstance.U.expand_dims(time=dsInstance.coords['time'])
@@ -520,10 +522,14 @@ def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: d
             mean = str(tomlConfig['outputTemporalMean']).lower()
             if mean in ['monthly', 'month'] and np.max(dataset[timeDim]) - np.min(dataset[timeDim]) >= np.timedelta64(27, 'D'):
                 for _, group in dataset.resample({timeDim: "MS"}):
+                    if len(group[timeDim]) == 0:
+                        continue
                     dsOut, fnout = _process_group(group, list(group[timeDim]))
                     dsOut.to_netcdf(fnout)
             elif mean in ['daily', 'day'] and np.max(dataset[timeDim]) - np.min(dataset[timeDim]) >= np.timedelta64(1, 'D'):
                 for _, group in dataset.resample({timeDim: "D"}):
+                    if len(group[timeDim]) == 0:
+                        continue
                     dsOut, fnout = _process_group(group, list(group[timeDim]))
                     dsOut.to_netcdf(fnout)
             else:
@@ -549,6 +555,7 @@ def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: d
 
     else:  # multiple files — calculate temporal mean across all of them
         first = True
+        count = 0
         for path, time in zip(pathsAndTimeChunk.Path, pathsAndTimeChunk.index):
             dataset = readAndTransposeData(
                 path, reqVars, tomlConfig['vertDim'], tomlConfig['latDim'], tomlConfig['lonDim'],
@@ -559,7 +566,7 @@ def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: d
             if timeDim and timeDim in dataset.dims:
                 for time2 in dataset[timeDim]:
                     dlp = _interp(dataset, time2)
-                    dsInstance = _run_tem_and_attach_vars(tomlConfig, dlp, time, saveInterpolatedZonalMeanVars, saveZonalMeanVars)
+                    dsInstance = _run_tem_and_attach_vars(tomlConfig, dlp, pd.Timestamp(time2.values), saveInterpolatedZonalMeanVars, saveZonalMeanVars)
                     if first:
                         time1st = dsInstance.coords['time']
                         dsU = dsInstance.U.expand_dims(time=dsInstance.coords['time'])
@@ -567,6 +574,7 @@ def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: d
                         first = False
                     else:
                         dsAccum, dsU = _accumulate(dsAccum, dsU, dsInstance)
+                    count += 1
             else:
                 dlp = interpolateToLogPressure(
                     dataset, reqVars, tomlConfig['verticalDimensionType'], tomlConfig['targetLevels'],
@@ -581,12 +589,13 @@ def mainCalcs(pathsAndTimeChunk: pd.DataFrame, reqVars: list[str], tomlConfig: d
                     first = False
                 else:
                     dsAccum, dsU = _accumulate(dsAccum, dsU, dsInstance)
+                count += 1
 
             # += operation is not atomic, so we need to get a lock:
             with counter.get_lock():
                 counter.value += 1
 
-        dsOut = _finalize_mean(dsAccum, dsU, len(pathsAndTimeChunk), time1st, dsInstance)
+        dsOut = _finalize_mean(dsAccum, dsU, count, time1st, dsInstance)
         fnout = _build_output_filename(tomlConfig, pd.Timestamp(dsOut.time.values[0]))
         dsOut.to_netcdf(fnout)
         

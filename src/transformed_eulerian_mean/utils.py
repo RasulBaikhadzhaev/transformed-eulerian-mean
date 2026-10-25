@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import os
 import sys
 import time
@@ -9,6 +10,43 @@ import numpy as np
 import pandas as pd
 import toml
 from metpy.units import units
+
+_STRING_ONLY_CONFIG_KEYS = {
+    'outputDirectory', 'inputDirectory', 'inputPath', 'inputPathType',
+    'inputDataDescription', 'inFileNames', 'timeInfoInFileNames', 'outPrefix',
+    'startDate', 'endDate', 'verticalDimensionType', 'temperatureType',
+    'temperatureName', 'verticalWindType', 'pressureName', 'thetaName',
+    'zonalWindName', 'meridionalWindName', 'verticalWindName', 'latDim',
+    'lonDim', 'vertDim', 'timeDim', 'tracerVerticalDimensionType',
+    'tracerPressureName', 'tracerThetaName', 'tracerLatDim', 'tracerLonDim',
+    'tracerVertDim', 'tracerTimeDim', 'tracerInputDirectory',
+    'tracerInFileNames', 'tracerTimeInfoInFileNames',
+}
+
+
+def _parse_cli_value(arg: str, value: Any) -> Any:
+    """Convert a raw CLI string value into its appropriate Python type (bool, int, float, list, or str)."""
+    if not isinstance(value, str) or arg in _STRING_ONLY_CONFIG_KEYS:
+        return value
+    stripped = value.strip()
+    if stripped.lower() == 'true':
+        return True
+    if stripped.lower() == 'false':
+        return False
+    try:
+        return toml.loads(f"v = {stripped}")["v"]
+    except Exception:
+        pass
+    try:
+        return ast.literal_eval(stripped)
+    except Exception:
+        pass
+    if stripped.startswith('[') and stripped.endswith(']'):
+        inner = stripped[1:-1].strip()
+        if not inner:
+            return []
+        return [item.strip().strip("'\"") for item in inner.split(',') if item.strip()]
+    return value
 
 
 def addRatioUnits() -> None:
@@ -59,10 +97,11 @@ def load_and_merge_config(parserArgs: Any) -> dict:
     dict
         Merged configuration mapping.
     """
-    config = toml.load(open(parserArgs.configFile, 'r'))
+    with open(parserArgs.configFile, 'r') as f:
+        config = toml.load(f)
     for arg, value in vars(parserArgs).items():
         if value != 'from config file' and arg != 'configFile':
-            config[arg] = value
+            config[arg] = _parse_cli_value(arg, value)
     return config
 
 
@@ -157,7 +196,8 @@ def progress_reporter(counter: Any, totalN: int, timeStart: float, pool: Any) ->
     while True:
         currentN = counter.value
         elapsed_str = format_seconds(time.time() - timeStart)
-        pct = f"\033[1m{(currentN/totalN)*100:4.2f}%\033[0m"
+        pct_val = (currentN / totalN) * 100 if totalN > 0 else 100.0
+        pct = f"\033[1m{pct_val:4.2f}%\033[0m"
 
         pids = [os.getpid()] + [p.pid for p in pool._pool if p.is_alive()]
         cur_rss = sum(_rss_mb(p) for p in pids)

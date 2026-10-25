@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import warnings
 from collections.abc import Callable
 from typing import Any
 
@@ -34,7 +35,14 @@ def _interp1d_3d(target_1d: np.ndarray, source_3d: np.ndarray, *data_arrays: np.
     cols = H * W
 
     # Ensure source increases along axis 0 (e.g. log-pressure may decrease)
-    if source_3d[0, 0, 0] > source_3d[-1, 0, 0]:
+    diff0 = source_3d[-1, 0, 0] - source_3d[0, 0, 0]
+    if np.isnan(diff0):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            decreasing = bool(np.nanmean(np.diff(source_3d, axis=0)) < 0)
+    else:
+        decreasing = bool(diff0 < 0)
+    if decreasing:
         source_3d = source_3d[::-1]
         data_arrays = tuple(d[::-1] for d in data_arrays)
 
@@ -42,18 +50,29 @@ def _interp1d_3d(target_1d: np.ndarray, source_3d: np.ndarray, *data_arrays: np.
     dats = [d.reshape(S, cols).astype('f4') for d in data_arrays]
     col_arange = np.arange(cols)
 
-    src_min = src[0]   # (cols,) — monotone increasing → first row is minimum
-    src_max = src[-1]  # (cols,)
+    has_nan = bool(np.isnan(src).any())
+    if has_nan:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            src_min = np.nanmin(src, axis=0)
+            src_max = np.nanmax(src, axis=0)
+        row_indices = np.arange(S)[:, np.newaxis]
+    else:
+        src_min = src[0]   # (cols,) — monotone increasing → first row is minimum
+        src_max = src[-1]  # (cols,)
 
     T = len(target_1d)
     out_arrays = [np.empty((T, cols), dtype='f4') for _ in data_arrays]
 
     for ti in range(T):
         t_val = float(target_1d[ti])
-        oob = (t_val < src_min) | (t_val > src_max)
-
-        # Last source index <= t_val for each column
-        idx = (src <= t_val).sum(axis=0) - 1
+        if has_nan:
+            oob = (t_val < src_min) | (t_val > src_max) | np.isnan(src_min)
+            idx = np.where(src <= t_val, row_indices, -1).max(axis=0)
+        else:
+            oob = (t_val < src_min) | (t_val > src_max)
+            # Last source index <= t_val for each column
+            idx = (src <= t_val).sum(axis=0) - 1
         idx = np.clip(idx, 0, S - 2)
 
         lo_src = src[idx, col_arange]
@@ -229,7 +248,7 @@ def interpolateToLogPressure(dataset: xr.Dataset, reqVars: list[str], vertDimTyp
         datasetLogPress['alt'].attrs['long_name'] = 'Log pressure altitude'
         datasetLogPress['alt'].attrs['units'] = 'km'
         datasetLogPress = datasetLogPress.rename({latDimName: 'lat', lonDimName: 'lon'})
-        if targetLevels != 'skip':
+        if not isinstance(targetLevels, str) or targetLevels != 'skip':
             datasetLogPress = datasetLogPress.interp(alt=targetLevels, method='linear')
 
     elif vertDimType == 'other':
@@ -247,7 +266,7 @@ def interpolateToLogPressure(dataset: xr.Dataset, reqVars: list[str], vertDimTyp
 
     elif vertDimType == 'log-pressure':
         datasetLogPress = dataset.rename({vertDimName: 'alt', latDimName: 'lat', lonDimName: 'lon'})
-        if targetLevels != 'skip':
+        if not isinstance(targetLevels, str) or targetLevels != 'skip':
             datasetLogPress = datasetLogPress.interp(alt=targetLevels, method='linear')
 
     else:
@@ -259,7 +278,10 @@ def interpolateToLogPressure(dataset: xr.Dataset, reqVars: list[str], vertDimTyp
         datasetLogPress[variable] = datasetLogPress[variable].mean(dim='lon', keep_attrs=True)
 
     for variable in saveZonalMeanVars:
-        datasetLogPress[variable] = dataset[variable].mean(dim='lon', keep_attrs=True)
+        zm = dataset[variable].mean(dim=lonDimName, keep_attrs=True)
+        if latDimName != 'lat' and latDimName in zm.dims:
+            zm = zm.rename({latDimName: 'lat'})
+        datasetLogPress[variable] = zm
 
     return datasetLogPress
 
@@ -347,8 +369,9 @@ def interpolateToThetaAndCombineData(tracerDataset: xr.Dataset, metDataset: xr.D
         _tracer_levels = (metDataset[tomlConfig['vertDim']].values if isinstance(tomlConfig.get('targetLevels', 'skip'), str)
                           else tomlConfig['targetLevels'])
         thetaTargetLevels = _tracer_levels * units.K
-        theta_3D_input = (np.array(tracerDataset[tomlConfig['tracerThetaName']]) *
-                          units(tracerDataset[tomlConfig['tracerThetaName']].units)).to('kelvin')
+        tracer_theta_var = tomlConfig.get('tracerThetaName') or tomlConfig['thetaName']
+        theta_3D_input = (np.array(tracerDataset[tracer_theta_var]) *
+                          units(tracerDataset[tracer_theta_var].units)).to('kelvin')
 
         tracerDatasetThetaLevels = _build_interpolated_dataset(
             tracerDataset, tomlConfig['tracerNames'],
@@ -434,7 +457,8 @@ def interpolateToPressureAndCombineData(tracerDataset: xr.Dataset, metDataset: x
         pressureLevels = alt2press(tomlConfig['targetLevels'] * units.km).to('hPa')
         LNPressTarget = np.log(pressureLevels.magnitude)[:, np.newaxis, np.newaxis]
 
-        vert = np.array(tracerDataset[tomlConfig['pressureName']]) * units(tracerDataset[tomlConfig['pressureName']].units)
+        tracer_press_var = tomlConfig.get('tracerPressureName') or tomlConfig['pressureName']
+        vert = np.array(tracerDataset[tracer_press_var]) * units(tracerDataset[tracer_press_var].units)
         LNPressInput = np.log(vert.to('hPa').magnitude)
 
         tracerDatasetLogPress = _build_interpolated_dataset(

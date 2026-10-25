@@ -463,3 +463,56 @@ def test_saveout_default_vert_coord_is_theta(tmp_path, out_cfg):
     with xr.open_dataset(list(tmp_path.glob("*.nc"))[0]) as ds:
         assert "theta" in ds.coords
         assert ds.theta.attrs["units"] == "K"
+
+
+def test_extracttime_empty_list_returns_empty_index():
+    result = extractTimeFromFileNames([], "*YYYYMMDD???")
+    assert isinstance(result, pd.DatetimeIndex)
+    assert len(result) == 0
+
+
+def test_outDirSkip_with_empty_output_dir(tmp_path):
+    """outDirSkip=True when outputDir has no .nc files yet must not crash."""
+    inp_dir = tmp_path / "inp"
+    inp_dir.mkdir()
+    _touch(inp_dir, ["era5_20200101.nc", "era5_20200201.nc", "era5_20200301.nc"])
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    res1, _, _ = collectFileNames(
+        str(inp_dir), "*.nc", "*YYYYMMDD???",
+        outputDir=str(out_dir), outPrefix="pfx_", outDirSkip=True,
+    )
+    assert len(res1) == 3
+
+    res2, _, _ = collectFileNamesTTransport(
+        str(inp_dir), "*.nc", "*YYYYMMDD???",
+        outputDir=str(out_dir), outPrefix="pfx_", outDirSkip=True,
+    )
+    assert len(res2) == 3
+
+
+def test_collect_ttransport_single_file(tmp_path):
+    """collectFileNamesTTransport with 1 file should not raise KeyError on mode()[0]."""
+    _touch(tmp_path, ["clams_20200101.nc"])
+    result, missing, freq = collectFileNamesTTransport(
+        str(tmp_path), "*.nc", "*YYYYMMDD???"
+    )
+    assert len(result) == 1
+    assert missing == []
+    assert freq == pd.Timedelta(0)
+
+
+def test_chunk_auto_same_freq_asymmetric_weights():
+    """Closer straddling met file must receive the larger interpolation weight."""
+    tracer_times = pd.DatetimeIndex(["2020-01-01 00:00", "2020-01-01 06:00"])
+    met_times    = pd.DatetimeIndex(["2020-01-01 05:00", "2020-01-01 11:00"])
+    tracer = _df(tracer_times)
+    met    = _df(met_times, [Path("met0.nc"), Path("met1.nc")])
+    freq   = pd.Timedelta("6h")
+    result = chunkMetFilesPathsForBinning(met, tracer, "auto", freq, freq)
+    ts = pd.Timestamp("2020-01-01 06:00")
+    weights = result[ts][2]
+    # met0 (05:00) is 1h away from 06:00; met1 (11:00) is 5h away -> met0 weight = 5/6, met1 weight = 1/6
+    np.testing.assert_allclose(weights, [5 / 6, 1 / 6], rtol=1e-6)
+
